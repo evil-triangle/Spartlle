@@ -1,0 +1,2265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>棋盘塔防 · 对抗模式</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(circle at 50% 30%, #12122a 0%, #05050d 80%);
+    color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 10px; padding: 14px 14px 130px;
+    user-select: none;
+  }
+  .hud {
+    display: flex; align-items: center; gap: 20px;
+    padding: 10px 18px; border-radius: 12px;
+    background: rgba(20,20,40,0.7);
+    border: 1px solid #2a2a4e;
+    font-size: 14px;
+    width: 780px; justify-content: space-between;
+  }
+  .side { display: flex; align-items: center; gap: 8px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot.p1 { background: #3b82f6; box-shadow: 0 0 10px #3b82f6; }
+  .dot.p2 { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+  .meteor { color: #fbbf24; font-weight: 700; }
+  .beacon-count {
+    color: #2dd4bf;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: rgba(45,212,191,0.10);
+    border: 1px solid rgba(45,212,191,0.25);
+    transition: all 0.2s;
+  }
+  .beacon-count.active {
+    background: rgba(45,212,191,0.25);
+    border-color: #2dd4bf;
+    color: #5eead4;
+    box-shadow: 0 0 10px rgba(45,212,191,0.4);
+  }
+  .turn {
+    padding: 4px 12px; border-radius: 999px;
+    background: #1e3a8a; color: #dbeafe;
+    font-weight: 700; font-size: 13px; letter-spacing: 0.5px;
+  }
+  .turn.p2 { background: #7f1d1d; color: #fee2e2; }
+  canvas {
+    display: block; border-radius: 10px;
+    box-shadow: 0 0 40px rgba(0,0,0,0.9), 0 0 0 1px #2a2a4e;
+    cursor: pointer;
+  }
+  .hint { font-size: 12px; color: #6b6b8a; text-align: center; min-height: 16px; }
+
+  .turn-banner {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none; z-index: 8;
+  }
+  .banner-content {
+    text-align: center;
+    padding: 22px 66px; border-radius: 22px;
+    background: rgba(15,15,30,0.92);
+    border: 2px solid #3b82f6;
+    box-shadow: 0 0 60px rgba(59,130,246,0.5);
+    opacity: 0; transform: scale(0.85);
+    will-change: opacity, transform;
+  }
+  .banner-content.play { animation: bannerPop 1.4s cubic-bezier(0.2, 0.9, 0.3, 1) forwards; }
+  @keyframes bannerPop {
+    0%   { opacity: 0; transform: scale(0.82); }
+    14%  { opacity: 1; transform: scale(1.06); }
+    24%  { opacity: 1; transform: scale(1.00); }
+    72%  { opacity: 1; transform: scale(1.00); }
+    100% { opacity: 0; transform: scale(1.03); }
+  }
+  .banner-title {
+    font-size: 38px; font-weight: 900; letter-spacing: 3px;
+    color: #93c5fd; text-shadow: 0 0 24px currentColor; line-height: 1.1;
+  }
+  .banner-title.p2 { color: #fca5a5; }
+  .banner-sub {
+    margin-top: 8px; font-size: 15px; font-weight: 700;
+    letter-spacing: 1.5px; color: #fbbf24;
+    text-shadow: 0 0 14px rgba(251,191,36,0.6);
+    display: none;
+  }
+  .banner-sub.show { display: block; }
+  .banner-sub.beacon { color: #2dd4bf; text-shadow: 0 0 14px rgba(45,212,191,0.6); }
+
+  .bottom-bar {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 10px; padding: 12px;
+    pointer-events: none; z-index: 5;
+  }
+  .piece-panel {
+    pointer-events: auto;
+    display: none; gap: 12px; padding: 12px;
+    border-radius: 14px;
+    background: rgba(15,15,30,0.94);
+    border: 1px solid #2a2a4e;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.6);
+    backdrop-filter: blur(8px);
+    flex-wrap: wrap; justify-content: center; max-width: 90vw;
+  }
+  .piece-panel.show { display: flex; }
+  .piece-card {
+    width: 260px; padding: 12px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #1a1a2e 0%, #15152a 100%);
+    border: 1px solid #333355;
+    display: flex; gap: 12px;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .piece-card:hover { border-color: #4a4a7a; transform: translateY(-2px); }
+  .piece-card.disabled { opacity: 0.45; pointer-events: none; }
+  .piece-card.current {
+    border-color: #fbbf24;
+    box-shadow: 0 0 16px rgba(251,191,36,0.35);
+  }
+  .card-icon { width: 56px; height: 56px; flex-shrink: 0; display: block; }
+  .card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  .card-name {
+    font-size: 15px; font-weight: 700; color: #fff;
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  }
+  .card-tag {
+    font-size: 10px; font-weight: 600;
+    padding: 1px 6px; border-radius: 4px;
+    background: #2a2a4e; color: #94a3b8; letter-spacing: 0.5px;
+  }
+  .card-tag.gold { background: #78350f; color: #fcd34d; }
+  .card-desc { font-size: 11px; line-height: 1.5; color: #94a3b8; flex: 1; }
+  .card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; }
+  .card-cost { font-size: 12px; font-weight: 700; color: #fbbf24; display: flex; align-items: center; gap: 4px; }
+  .card-cost::before { content: '◆'; font-size: 10px; color: #fbbf24; }
+  .card-btn {
+    padding: 5px 14px; border-radius: 6px;
+    background: #1e3a8a; color: #dbeafe;
+    border: 1px solid #3b82f6;
+    font-size: 12px; font-weight: 700;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .card-btn:hover { background: #1e40af; box-shadow: 0 0 12px rgba(59,130,246,0.5); }
+  .card-btn:active { transform: scale(0.95); }
+  .card-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .action-menu {
+    pointer-events: auto;
+    display: none; gap: 10px; padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(15,15,30,0.94);
+    border: 1px solid #2a2a4e;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.6);
+    backdrop-filter: blur(8px);
+    align-items: center;
+  }
+  .action-menu.show { display: flex; }
+  .action-menu-label { font-size: 12px; color: #94a3b8; padding: 0 6px 0 2px; font-weight: 600; }
+  .action-btn {
+    padding: 9px 24px; border-radius: 9px;
+    background: #1a1a2e; border: 1px solid #333355;
+    color: #e0e0e0; font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .action-btn:hover {
+    background: #252542; border-color: #60a5fa;
+    color: #dbeafe; box-shadow: 0 0 12px rgba(96,165,250,0.35);
+  }
+  .action-btn:active { transform: scale(0.96); }
+  .action-btn.cancel { border-color: #7f1d1d; color: #fca5a5; }
+  .action-btn.cancel:hover { border-color: #ef4444; box-shadow: 0 0 12px rgba(239,68,68,0.35); }
+
+  .cat-bar {
+    pointer-events: auto;
+    display: flex; gap: 10px;
+    padding: 8px; border-radius: 14px;
+    background: rgba(15,15,30,0.94);
+    border: 1px solid #2a2a4e;
+    box-shadow: 0 -6px 30px rgba(0,0,0,0.5);
+    backdrop-filter: blur(8px);
+    flex-wrap: wrap; justify-content: center;
+  }
+  .cat-tab {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 18px; border-radius: 9px;
+    background: transparent; border: 1px solid transparent;
+    color: #94a3b8;
+    font-size: 13px; font-weight: 700; letter-spacing: 0.5px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .cat-tab:hover:not(:disabled) { background: #1a1a2e; color: #e0e0e0; }
+  .cat-tab.active {
+    background: #1e3a8a; color: #dbeafe;
+    border-color: #60a5fa;
+    box-shadow: 0 0 14px rgba(96,165,250,0.4);
+  }
+  .cat-tab:disabled { opacity: 0.35; cursor: not-allowed; }
+  .cat-emoji { font-size: 15px; line-height: 1; }
+
+  .cat-tab.core-tab {
+    border: 1px solid #78350f;
+    background: #1c1408;
+    color: #fcd34d;
+  }
+  .cat-tab.core-tab:hover:not(:disabled) {
+    background: #292008; border-color: #fbbf24; color: #fde68a;
+  }
+  .cat-tab.core-tab.active {
+    background: #78350f; color: #fef3c7;
+    border-color: #fbbf24;
+    box-shadow: 0 0 16px rgba(251,191,36,0.55);
+  }
+  .cat-tab.core-tab.p1-own {
+    border-color: #3b82f6;
+    background: rgba(30,58,138,0.35);
+    color: #bfdbfe;
+  }
+  .cat-tab.core-tab.p2-own {
+    border-color: #ef4444;
+    background: rgba(127,29,29,0.35);
+    color: #fecaca;
+  }
+  .cat-tab.core-tab .core-status {
+    font-size: 10px; padding: 1px 6px;
+    border-radius: 4px; background: rgba(0,0,0,0.5); letter-spacing: 0.3px;
+  }
+
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    display: none; align-items: center; justify-content: center;
+    z-index: 10; backdrop-filter: blur(4px);
+  }
+  .overlay.show { display: flex; }
+  .overlay-content {
+    text-align: center; padding: 40px 60px; border-radius: 20px;
+    background: #15152a; border: 2px solid #3b82f6;
+    box-shadow: 0 0 60px rgba(59,130,246,0.4);
+  }
+  .overlay-content h1 { font-size: 42px; margin-bottom: 16px; color: #fbbf24; }
+  .overlay-content button {
+    margin-top: 20px; padding: 10px 28px; border-radius: 8px;
+    background: #1e3a8a; color: white; border: none; font-size: 15px;
+    cursor: pointer; font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<div class="hud">
+  <div class="side">
+    <span class="dot p1"></span>P1 · 陨石 <span class="meteor" id="m1">5</span>
+    <span class="beacon-count" id="b1">⬢ 0</span>
+  </div>
+  <div class="turn" id="turnLabel">玩家 1 回合</div>
+  <div class="side">
+    <span class="beacon-count" id="b2">⬢ 0</span>
+    P2 · 陨石 <span class="meteor" id="m2">5</span><span class="dot p2"></span>
+  </div>
+</div>
+
+<canvas id="board"></canvas>
+<div class="hint" id="hint">选择下方分类，再选择棋子放置；或点击己方棋子行动</div>
+
+<div class="turn-banner" id="turnBanner">
+  <div class="banner-content" id="bannerContent">
+    <div class="banner-title" id="bannerTitle">玩家 1 回合</div>
+    <div class="banner-sub" id="bannerSub"></div>
+  </div>
+</div>
+
+<div class="bottom-bar">
+  <div class="piece-panel" id="piecePanel"></div>
+  <div class="action-menu" id="actionMenu"></div>
+  <div class="cat-bar" id="catBar"></div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="overlay-content">
+    <h1 id="resultText">玩家 1 胜利</h1>
+    <button onclick="location.reload()">再来一局</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ==================== CONFIG ====================
+  const CFG = { N: 15, CELL: 52, DPR: Math.min(window.devicePixelRatio || 1, 2) };
+  const CORE_POS = { col: 7, row: 7 };
+  const BEACONS = [
+    { col: 0,  row: 14 },  // 左上
+    { col: 14, row: 0  },  // 右下
+  ];
+
+  const DIRS8 = [
+    { dc: 1, dr: 0 }, { dc: -1, dr: 0 },
+    { dc: 0, dr: 1 }, { dc: 0, dr: -1 },
+    { dc: 1, dr: 1 }, { dc: 1, dr: -1 },
+    { dc: -1, dr: 1 }, { dc: -1, dr: -1 },
+  ];
+  const DIRS4 = [
+    { dc: 1, dr: 0 }, { dc: -1, dr: 0 },
+    { dc: 0, dr: 1 }, { dc: 0, dr: -1 },
+  ];
+
+  const PIECE_TYPES = {
+    star: {
+      name: '星', category: 'producer',
+      cost: 2, maxHp: 1, kind: 'producer', produce: 2,
+      desc: '每回合开始给你创造2陨石。',
+    },
+    nova: {
+      name: '新星', category: 'producer',
+      cost: 10, maxHp: 1, kind: 'producer', produce: 5,
+      desc: '每回合开始给你带来5陨石。',
+    },
+    archer: {
+      name: '弓箭', category: 'shooter',
+      cost: 12, maxHp: 2, kind: 'shooter',
+      actions: ['shoot'],
+      desc: '玩家可消耗一回合使弓箭沿一个方向发射一个【箭矢类】箭，击中第一个到达的目标，造成1伤害。',
+    },
+    cannon: {
+      name: '星炮', category: 'cannon',
+      cost: 99, maxHp: 3, kind: 'cannon',
+      actions: ['shootCannon'],
+      desc: '可发射【炮弹类】炮弹，碰到星核、信标、棋子、边界墙时爆炸，对爆炸中心造成7伤害，周围8格3【范围伤害】。hp = 3。',
+    },
+    warrior: {
+      name: '勇士', category: 'melee',
+      cost: 16, maxHp: 2, kind: 'melee',
+      attackDamage: 2,
+      move: { dirs: 'ortho', range: 3 },
+      actions: ['attack', 'move'],
+      desc: '可控制他攻击周围8格中的一格，造成2点伤害。也可控制他向一个方向（上下左右）移动1~3格。',
+    },
+    mage: {
+      name: '普通法师', category: 'summon',
+      cost: 75, maxHp: 2, kind: 'summon',
+      move: { dirs: 'all8', range: 2 },
+      spawnType: 'warrior',
+      actions: ['spawn', 'move'],
+      desc: '可控制他在周围八格中的一空格生成一个勇士。可控制移动。向8个方向中的一个移动1~2格。感受法师的力量！',
+    },
+    wall: {
+      name: '壁垒', category: 'defense',
+      cost: 10, maxHp: 3, kind: 'wall',
+      desc: '坚实的壁垒，hp = 3。用来阻挡敌人的箭矢与去路。',
+    },
+    ironwall: {
+      name: '加固的壁垒', category: 'defense',
+      cost: 30, maxHp: 9, kind: 'wall',
+      desc: '加固的壁垒，hp = 9。加固后是不是抗造多了？',
+    },
+    base: { name: '大本营', category: 'structure', cost: 0, maxHp: 1, kind: 'base' },
+    fort: { name: '堡垒',   category: 'structure', cost: 0, maxHp: 3, kind: 'fort' },
+  };
+
+  const CATEGORIES = {
+    producer: { name: '生产类', emoji: '★', order: 1 },
+    shooter:  { name: '箭矢类', emoji: '➤', order: 2 },
+    cannon:   { name: '星炮类', emoji: '☄', order: 3 },
+    melee:    { name: '近战类', emoji: '⚔', order: 4 },
+    defense:  { name: '防御类', emoji: '▣', order: 5 },
+    summon:   { name: '生成类', emoji: '✦', order: 6 },
+  };
+
+  const CORE_FUNCTIONS = {
+    yield: {
+      name: '收益', icon: '★',
+      desc: '回合开始时占领星核的一方收获的陨石 × 1.17，向下取整。',
+    },
+    defense: {
+      name: '强防', icon: '⛨',
+      desc: '若对方回合中星核处于己方占领状态，则对方此回合对己方造成的所有伤害 −1（最低 1）。',
+    },
+    transfer: {
+      name: '转移', icon: '➤',
+      desc: '消耗本回合，并消耗 30 陨石，将己方一个场上棋子移动到星核周围 5×5 区域中的一个空格。（激活 + 使用共 40）',
+    },
+  };
+
+  // 信标被动
+  const BEACON_BUFF = {
+    1: { chance: 0.70, name: '70%' },
+    2: { chance: 0.95, name: '95%' },
+  };
+
+  const ACTIONS = {
+    shoot:       { name: '射击' },
+    shootCannon: { name: '发射炮弹' },
+    attack:      { name: '攻击' },
+    move:        { name: '移动' },
+    spawn:       { name: '生成' },
+  };
+
+  const C = {
+    empty: '#0f0f1a', grid: '#1e1e30',
+    base1Tint: '#101c3d', fort1Tint: '#0f1830',
+    base2Tint: '#2a0e14', fort2Tint: '#261014',
+    coreTint: '#241634', beaconTint: '#0d2a2a',
+    coreNeutral: '#fbbf24',
+    coreP1: '#60a5fa',
+    coreP2: '#f87171',
+    beaconMark: '#2dd4bf',
+    p1: '#3b82f6', p1d: '#1e40af', p1l: '#93c5fd',
+    p2: '#ef4444', p2d: '#991b1b', p2l: '#fca5a5',
+    hover: '#ffffff', select: '#fbbf24', valid: '#22c55e',
+    aim: '#22c55e', aimEmpty: '#64748b',
+    attack: '#ef4444',
+    spawn: '#a855f7',
+    shell: '#fb923c', shellCore: '#fff7ed',
+    explosionHot: '#fff7ed', explosionMid: '#fb923c', explosionEdge: 'rgba(234,88,12,0)',
+  };
+
+  // ==================== 棋盘布局 ====================
+  function cellType(col, row) {
+    const N = CFG.N, M = (N - 1) / 2;
+    if (col === 0 && row === 0) return 'base1';
+    if (col === N-1 && row === N-1) return 'base2';
+    if (col <= 1 && row <= 1 && !(col === 0 && row === 0)) return 'fort1';
+    if (col >= N-2 && row >= N-2 && !(col === N-1 && row === N-1)) return 'fort2';
+    if (col === 0 && row === N-1) return 'beacon';
+    if (col === N-1 && row === 0) return 'beacon';
+    if (col === M && row === M) return 'core';
+    return 'empty';
+  }
+  function cellRect(col, row) {
+    return { x: col*CFG.CELL, y: (CFG.N-1-row)*CFG.CELL, w: CFG.CELL, h: CFG.CELL };
+  }
+  function cellCenter(col, row) {
+    const r = cellRect(col, row);
+    return { x: r.x + r.w/2, y: r.y + r.h/2 };
+  }
+  function pixelToCell(px, py) {
+    const col = Math.floor(px / CFG.CELL);
+    const row = CFG.N - 1 - Math.floor(py / CFG.CELL);
+    if (col < 0 || col >= CFG.N || row < 0 || row >= CFG.N) return null;
+    return { col, row };
+  }
+  const key = (c, r) => c + ',' + r;
+  const inBounds = (c, r) => c >= 0 && c < CFG.N && r >= 0 && r < CFG.N;
+
+  // ==================== Canvas ====================
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const SIZE = CFG.N * CFG.CELL;
+  canvas.width  = SIZE * CFG.DPR;
+  canvas.height = SIZE * CFG.DPR;
+  canvas.style.width  = SIZE + 'px';
+  canvas.style.height = SIZE + 'px';
+  ctx.scale(CFG.DPR, CFG.DPR);
+
+  // ==================== State ====================
+  const state = {
+    turn: 1,
+    meteors: { 1: 5, 2: 5 },
+    pieces: new Map(),
+    hover: null,
+    placing: null,
+    controlled: null,
+    controlAction: null,
+    openCategory: null,
+    arrows: [],
+    shells: [],
+    explosions: [],
+    gameOver: false,
+    starCore: { owner: 0, function: null },
+    beacons: new Map(),   // key -> owner (0/1/2)
+    transferMode: null,
+  };
+
+  function initPieces() {
+    const p = state.pieces;
+    p.set(key(0,0),   { type:'base', owner:1, hp:1, maxHp:1 });
+    p.set(key(1,0),   { type:'fort', owner:1, hp:3, maxHp:3 });
+    p.set(key(0,1),   { type:'fort', owner:1, hp:3, maxHp:3 });
+    p.set(key(1,1),   { type:'fort', owner:1, hp:3, maxHp:3 });
+
+    p.set(key(14,14), { type:'base', owner:2, hp:1, maxHp:1 });
+    p.set(key(13,14), { type:'fort', owner:2, hp:3, maxHp:3 });
+    p.set(key(14,13), { type:'fort', owner:2, hp:3, maxHp:3 });
+    p.set(key(13,13), { type:'fort', owner:2, hp:3, maxHp:3 });
+  }
+
+  // ==================== 通用圆角 ====================
+  function roundRectCtx(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.lineTo(x + w - r, y);
+    c.quadraticCurveTo(x + w, y, x + w, y + r);
+    c.lineTo(x + w, y + h - r);
+    c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    c.lineTo(x + r, y + h);
+    c.quadraticCurveTo(x, y + h, x, y + h - r);
+    c.lineTo(x, y + r);
+    c.quadraticCurveTo(x, y, x + r, y);
+    c.closePath();
+  }
+  const roundRect = (x, y, w, h, r) => roundRectCtx(ctx, x, y, w, h, r);
+
+  // ==================== 据点归属 ====================
+  function computeOwnerAround(col, row) {
+    let p1 = 0, p2 = 0;
+    for (const n of getAdjacent(col, row)) {
+      const p = state.pieces.get(key(n.col, n.row));
+      if (!p) continue;
+      if (p.owner === 1) p1++;
+      else if (p.owner === 2) p2++;
+    }
+    if (p1 > p2) return 1;
+    if (p2 > p1) return 2;
+    return 0;
+  }
+
+  function updateStarCoreOwner() {
+    const newOwner = computeOwnerAround(CORE_POS.col, CORE_POS.row);
+    if (newOwner !== state.starCore.owner) {
+      state.starCore.owner = newOwner;
+      state.starCore.function = null;
+    }
+  }
+
+  function updateBeacons() {
+    for (const bp of BEACONS) {
+      const owner = computeOwnerAround(bp.col, bp.row);
+      state.beacons.set(key(bp.col, bp.row), owner);
+    }
+  }
+
+  function updateAllStructures() {
+    updateStarCoreOwner();
+    updateBeacons();
+  }
+
+  function countBeaconsOwnedBy(player) {
+    let c = 0;
+    for (const bp of BEACONS) {
+      if (state.beacons.get(key(bp.col, bp.row)) === player) c++;
+    }
+    return c;
+  }
+
+  // ==================== 图标 ====================
+  function iconStar(c, s) {
+    c.fillStyle = '#fff';
+    c.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 === 0 ? s : s * 0.42;
+      const a = -Math.PI/2 + i * Math.PI/5;
+      const x = Math.cos(a) * r, y = Math.sin(a) * r;
+      i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+    }
+    c.closePath(); c.fill();
+  }
+  function iconNova(c, s) {
+    c.save();
+    c.shadowColor = '#fef3c7'; c.shadowBlur = 10;
+    c.fillStyle = '#fff';
+    c.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const r = i % 2 === 0 ? s : s * 0.26;
+      const a = -Math.PI/2 + i * Math.PI/4;
+      const x = Math.cos(a) * r, y = Math.sin(a) * r;
+      i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+    }
+    c.closePath(); c.fill();
+    c.restore();
+    c.fillStyle = '#fbbf24';
+    c.beginPath(); c.arc(0, 0, s * 0.18, 0, Math.PI*2); c.fill();
+  }
+  function iconArcher(c, s) {
+    c.lineCap = 'round';
+    c.strokeStyle = '#fff';
+    c.lineWidth = s * 0.14;
+    c.beginPath();
+    c.arc(0, 0, s * 0.72, -Math.PI * 0.5, Math.PI * 0.5, true);
+    c.stroke();
+    c.lineWidth = s * 0.08;
+    c.beginPath();
+    c.moveTo(0, -s * 0.72); c.lineTo(0, s * 0.72);
+    c.stroke();
+    c.lineWidth = s * 0.11;
+    c.beginPath();
+    c.moveTo(-s * 0.55, 0); c.lineTo(s * 0.5, 0);
+    c.stroke();
+    c.fillStyle = '#fff';
+    c.beginPath();
+    c.moveTo(s * 0.85, 0);
+    c.lineTo(s * 0.42, -s * 0.28);
+    c.lineTo(s * 0.42, s * 0.28);
+    c.closePath(); c.fill();
+  }
+  function iconCannon(c, s) {
+    c.fillStyle = '#fff';
+    c.beginPath();
+    c.moveTo(-s * 0.22, s * 0.30);
+    c.lineTo(-s * 0.22, -s * 0.60);
+    c.lineTo(-s * 0.34, -s * 0.60);
+    c.lineTo(-s * 0.34, -s * 0.98);
+    c.lineTo( s * 0.34, -s * 0.98);
+    c.lineTo( s * 0.34, -s * 0.60);
+    c.lineTo( s * 0.22, -s * 0.60);
+    c.lineTo( s * 0.22, s * 0.30);
+    c.closePath(); c.fill();
+    c.beginPath(); c.arc(0, s * 0.38, s * 0.58, 0, Math.PI * 2); c.fill();
+    c.fillStyle = 'rgba(0,0,0,0.42)';
+    c.beginPath(); c.arc(0, s * 0.38, s * 0.20, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#fbbf24';
+    c.beginPath(); c.arc(0, -s * 0.80, s * 0.09, 0, Math.PI * 2); c.fill();
+  }
+  function iconWarrior(c, s) {
+    c.fillStyle = '#fff';
+    c.beginPath();
+    c.moveTo(0, -s);
+    c.lineTo(s * 0.16, -s * 0.55);
+    c.lineTo(s * 0.16, s * 0.15);
+    c.lineTo(-s * 0.16, s * 0.15);
+    c.lineTo(-s * 0.16, -s * 0.55);
+    c.closePath(); c.fill();
+    c.fillRect(-s * 0.5, s * 0.15, s * 1.0, s * 0.16);
+    c.fillRect(-s * 0.09, s * 0.31, s * 0.18, s * 0.5);
+    c.beginPath(); c.arc(0, s * 0.9, s * 0.13, 0, Math.PI*2); c.fill();
+  }
+  function iconMage(c, s) {
+    c.fillStyle = '#fff';
+    c.beginPath();
+    c.moveTo(s * 0.10, -s * 0.95);
+    c.quadraticCurveTo(-s * 0.30, -s * 0.45, -s * 0.50, s * 0.00);
+    c.lineTo(s * 0.50, s * 0.00);
+    c.quadraticCurveTo(s * 0.35, -s * 0.45, s * 0.10, -s * 0.95);
+    c.closePath(); c.fill();
+    c.beginPath();
+    c.ellipse(0, s * 0.10, s * 0.85, s * 0.16, 0, 0, Math.PI * 2);
+    c.fill();
+    c.beginPath();
+    c.arc(s * 0.10, -s * 0.95, s * 0.13, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = 'rgba(0,0,0,0.42)';
+    c.beginPath(); c.arc(-s * 0.02, -s * 0.38, s * 0.10, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(s * 0.28, -s * 0.22, s * 0.06, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(-s * 0.30, -s * 0.18, s * 0.05, 0, Math.PI * 2); c.fill();
+  }
+  function iconWall(c, s) {
+    c.fillStyle = '#fff';
+    c.beginPath();
+    c.moveTo(-s * 0.85, s * 0.75);
+    c.lineTo(-s * 0.85, -s * 0.45);
+    c.lineTo(-s * 0.85, -s * 0.80); c.lineTo(-s * 0.55, -s * 0.80); c.lineTo(-s * 0.55, -s * 0.45);
+    c.lineTo(-s * 0.20, -s * 0.45); c.lineTo(-s * 0.20, -s * 0.80); c.lineTo( s * 0.20, -s * 0.80); c.lineTo( s * 0.20, -s * 0.45);
+    c.lineTo( s * 0.55, -s * 0.45); c.lineTo( s * 0.55, -s * 0.80); c.lineTo( s * 0.85, -s * 0.80);
+    c.lineTo( s * 0.85, s * 0.75);
+    c.closePath(); c.fill();
+    c.fillStyle = 'rgba(0,0,0,0.4)';
+    c.fillRect(-s * 0.85, s * 0.10, s * 1.7, s * 0.08);
+    c.fillRect(-s * 0.85, s * 0.45, s * 1.7, s * 0.08);
+  }
+  function iconIronWall(c, s) {
+    c.fillStyle = '#fff';
+    c.beginPath();
+    c.moveTo(-s * 0.95, s * 0.80);
+    c.lineTo(-s * 0.95, -s * 0.35);
+    c.lineTo(-s * 0.95, -s * 0.82); c.lineTo(-s * 0.60, -s * 0.82); c.lineTo(-s * 0.60, -s * 0.35);
+    c.lineTo(-s * 0.20, -s * 0.35); c.lineTo(-s * 0.20, -s * 0.82); c.lineTo( s * 0.20, -s * 0.82); c.lineTo( s * 0.20, -s * 0.35);
+    c.lineTo( s * 0.60, -s * 0.35); c.lineTo( s * 0.60, -s * 0.82); c.lineTo( s * 0.95, -s * 0.82);
+    c.lineTo( s * 0.95, s * 0.80);
+    c.closePath(); c.fill();
+    c.fillStyle = 'rgba(0,0,0,0.40)';
+    c.fillRect(-s * 0.95, s * 0.15, s * 1.9, s * 0.16);
+    c.fillRect(-s * 0.95, s * 0.52, s * 1.9, s * 0.16);
+    c.fillStyle = '#fff';
+    for (const x of [-0.75, -0.45, -0.15, 0.15, 0.45, 0.75]) {
+      c.beginPath(); c.arc(s * x, s * 0.23, s * 0.05, 0, Math.PI*2); c.fill();
+      c.beginPath(); c.arc(s * x, s * 0.60, s * 0.05, 0, Math.PI*2); c.fill();
+    }
+  }
+  function iconBase(c, s) {
+    c.fillStyle = '#fff';
+    c.beginPath();
+    c.moveTo(-s * 0.75, s * 0.55);
+    c.lineTo(-s * 0.75, -s * 0.15);
+    c.lineTo(-s * 0.35, s * 0.1);
+    c.lineTo(0, -s * 0.6);
+    c.lineTo(s * 0.35, s * 0.1);
+    c.lineTo(s * 0.75, -s * 0.15);
+    c.lineTo(s * 0.75, s * 0.55);
+    c.closePath(); c.fill();
+    c.fillRect(-s * 0.75, s * 0.5, s * 1.5, s * 0.18);
+    c.fillStyle = 'rgba(0,0,0,0.45)';
+    c.beginPath(); c.arc(-s * 0.5, s * 0.32, s * 0.08, 0, Math.PI*2); c.fill();
+    c.beginPath(); c.arc(0,         s * 0.32, s * 0.08, 0, Math.PI*2); c.fill();
+    c.beginPath(); c.arc(s * 0.5,   s * 0.32, s * 0.08, 0, Math.PI*2); c.fill();
+  }
+  function iconFort(c, s) {
+    c.fillStyle = '#fff';
+    c.beginPath();
+    c.moveTo(0, -s * 0.75);
+    c.lineTo(s * 0.68, -s * 0.48);
+    c.lineTo(s * 0.68, s * 0.08);
+    c.quadraticCurveTo(s * 0.68, s * 0.62, 0, s * 0.8);
+    c.quadraticCurveTo(-s * 0.68, s * 0.62, -s * 0.68, s * 0.08);
+    c.lineTo(-s * 0.68, -s * 0.48);
+    c.closePath(); c.fill();
+    c.fillStyle = 'rgba(0,0,0,0.35)';
+    c.fillRect(-s * 0.09, -s * 0.45, s * 0.18, s * 0.9);
+    c.fillRect(-s * 0.38, -s * 0.18, s * 0.76, s * 0.18);
+  }
+
+  const ICONS = {
+    star: iconStar, nova: iconNova,
+    archer: iconArcher, cannon: iconCannon,
+    warrior: iconWarrior, mage: iconMage,
+    wall: iconWall, ironwall: iconIronWall,
+    base: iconBase, fort: iconFort,
+  };
+
+  function paintPieceBody(c, cx, cy, size, type, owner, opts = {}) {
+    const isP1 = owner === 1;
+    const main  = isP1 ? C.p1  : C.p2;
+    const dark  = isP1 ? C.p1d : C.p2d;
+    const light = isP1 ? C.p1l : C.p2l;
+    const radius = size * 0.22;
+
+    if (opts.shadow !== false) {
+      c.fillStyle = 'rgba(0,0,0,0.55)';
+      roundRectCtx(c, cx - size/2, cy - size/2 + 2, size, size, radius);
+      c.fill();
+    }
+
+    const g = c.createLinearGradient(0, cy - size/2, 0, cy + size/2);
+    g.addColorStop(0.00, light);
+    g.addColorStop(0.45, main);
+    g.addColorStop(1.00, dark);
+    c.fillStyle = g;
+    roundRectCtx(c, cx - size/2, cy - size/2, size, size, radius);
+    c.fill();
+
+    c.strokeStyle = '#ffffff';
+    c.lineWidth = 2;
+    roundRectCtx(c, cx - size/2, cy - size/2, size, size, radius);
+    c.stroke();
+
+    if (type === 'base') {
+      c.strokeStyle = 'rgba(255,255,255,0.5)';
+      c.lineWidth = 1.5;
+      roundRectCtx(c, cx - size/2 + 3.5, cy - size/2 + 3.5, size - 7, size - 7, radius - 2);
+      c.stroke();
+    }
+
+    const iconFn = ICONS[type];
+    if (iconFn) {
+      c.save();
+      c.translate(cx, cy - 1);
+      c.shadowColor = 'rgba(0,0,0,0.6)';
+      c.shadowBlur = 4;
+      iconFn(c, size * 0.30);
+      c.restore();
+    }
+  }
+
+  // ==================== 地板 ====================
+  const TINTS = {
+    base1: C.base1Tint, base2: C.base2Tint,
+    fort1: C.fort1Tint, fort2: C.fort2Tint,
+    core: C.coreTint, beacon: C.beaconTint, empty: C.empty,
+  };
+
+  function drawFloor(col, row) {
+    const r = cellRect(col, row);
+    const t = cellType(col, row);
+    ctx.fillStyle = TINTS[t];
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.strokeStyle = C.grid;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
+
+    const cx = r.x + r.w/2, cy = r.y + r.h/2;
+
+    if (t === 'core') {
+      drawStarCoreCell(r, cx, cy);
+    } else if (t === 'beacon') {
+      drawBeaconCell(r, cx, cy, col, row);
+    }
+  }
+
+  function drawStarCoreCell(r, cx, cy) {
+    const owner = state.starCore.owner;
+    const color = owner === 1 ? C.coreP1 : owner === 2 ? C.coreP2 : C.coreNeutral;
+
+    const pulse = 1 + 0.08 * Math.sin(performance.now() / 400);
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 16 * pulse;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 11); ctx.lineTo(cx + 11, cy);
+    ctx.lineTo(cx, cy + 11); ctx.lineTo(cx - 11, cy);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 4.5); ctx.lineTo(cx + 4.5, cy);
+    ctx.lineTo(cx, cy + 4.5); ctx.lineTo(cx - 4.5, cy);
+    ctx.closePath(); ctx.fill();
+
+    let p1 = 0, p2 = 0;
+    for (const n of getAdjacent(CORE_POS.col, CORE_POS.row)) {
+      const p = state.pieces.get(key(n.col, n.row));
+      if (!p) continue;
+      if (p.owner === 1) p1++;
+      else if (p.owner === 2) p2++;
+    }
+    drawCountBadge(r.x + 9, r.y + 9, p1, '#3b82f6');
+    drawCountBadge(r.x + r.w - 9, r.y + 9, p2, '#ef4444');
+
+    if (state.starCore.function) {
+      const fn = CORE_FUNCTIONS[state.starCore.function];
+      const bx = cx, by = r.y + r.h - 8;
+      ctx.fillStyle = 'rgba(0,0,0,0.85)';
+      ctx.beginPath(); ctx.arc(bx, by, 8, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = color; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(bx, by, 8, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.font = '900 11px ui-sans-serif, system-ui, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(fn.icon, bx, by + 0.5);
+    }
+  }
+
+  // ★ 信标视觉（按归属变色）
+  function drawBeaconCell(r, cx, cy, col, row) {
+    const owner = state.beacons.get(key(col, row)) ?? 0;
+    const color = owner === 1 ? C.coreP1 : owner === 2 ? C.coreP2 : C.beaconMark;
+
+    // 外环
+    ctx.save();
+    if (owner !== 0) {
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 10;
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+
+    if (owner === 0) {
+      // 中立：内圈淡环
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.6;
+      ctx.globalAlpha = 0.4;
+      ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI*2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else {
+      // 占领：实心 + 白心
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI*2); ctx.fill();
+    }
+
+    // 8 格势力计数（同星核）
+    let p1 = 0, p2 = 0;
+    for (const n of getAdjacent(col, row)) {
+      const p = state.pieces.get(key(n.col, n.row));
+      if (!p) continue;
+      if (p.owner === 1) p1++;
+      else if (p.owner === 2) p2++;
+    }
+    drawCountBadge(r.x + 9, r.y + 9, p1, '#3b82f6');
+    drawCountBadge(r.x + r.w - 9, r.y + 9, p2, '#ef4444');
+  }
+
+  function drawCountBadge(cx, cy, count, color) {
+    const r = 8;
+    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.font = '900 10px ui-sans-serif, system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(count), cx, cy + 0.5);
+  }
+
+  // ==================== 棋子绘制 ====================
+  function drawPieceVisual(col, row, piece, alpha = 1) {
+    const r = cellRect(col, row);
+    const cx = r.x + r.w/2, cy = r.y + r.h/2;
+    const size = r.w - 8;
+    const half = size / 2;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    paintPieceBody(ctx, cx, cy, size, piece.type, piece.owner);
+
+    const hpStr = String(Math.max(0, piece.hp));
+    const digits = hpStr.length;
+    const fontSize = digits <= 1 ? 12 : digits === 2 ? 11 : 10;
+    ctx.font = `900 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
+    const textW = ctx.measureText(hpStr).width;
+
+    const padX = 5, badgeH = 16;
+    const badgeW = Math.max(badgeH, textW + padX * 2);
+    const radius = badgeH / 2;
+    const badgeX = cx + half - badgeW - 1;
+    const badgeY = cy + half - badgeH - 1;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    roundRect(badgeX, badgeY, badgeW, badgeH, radius); ctx.fill();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.4;
+    roundRect(badgeX, badgeY, badgeW, badgeH, radius); ctx.stroke();
+
+    const ratio = Math.max(0, piece.hp) / piece.maxHp;
+    ctx.fillStyle = ratio > 0.6 ? '#ffffff' : ratio > 0.3 ? '#fde68a' : '#fca5a5';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(hpStr, badgeX + badgeW / 2, badgeY + badgeH / 2 + 0.5);
+
+    ctx.restore();
+  }
+  function drawPiece(col, row, piece) { drawPieceVisual(col, row, piece, 1); }
+
+  // ==================== 高亮 ====================
+  function drawShootRays(ctrl) {
+    const c0 = cellCenter(ctrl.col, ctrl.row);
+    for (const d of DIRS8) {
+      const nc = ctrl.col + d.dc, nr = ctrl.row + d.dr;
+      if (!inBounds(nc, nr)) continue;
+      const c1 = cellCenter(nc, nr);
+      const hit = findTargetAlongRay(ctrl.col, ctrl.row, d.dc, d.dr);
+      const color = hit ? C.aim : C.aimEmpty;
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = hit ? 0.9 : 0.35;
+      ctx.lineWidth = hit ? 3 : 2;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath(); ctx.moveTo(c0.x, c0.y); ctx.lineTo(c1.x, c1.y); ctx.stroke();
+      ctx.restore();
+      const ang = Math.atan2(c1.y - c0.y, c1.x - c0.x);
+      ctx.save();
+      ctx.translate(c1.x, c1.y); ctx.rotate(ang);
+      ctx.fillStyle = color; ctx.globalAlpha = hit ? 1 : 0.5;
+      ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(-5, -9); ctx.lineTo(-5, 9);
+      ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+  }
+
+  function drawCannonRays(ctrl) {
+    const c0 = cellCenter(ctrl.col, ctrl.row);
+    for (const d of DIRS8) {
+      const nc = ctrl.col + d.dc, nr = ctrl.row + d.dr;
+      if (!inBounds(nc, nr)) continue;
+      const c1 = cellCenter(nc, nr);
+      const impact = findShellImpact(ctrl.col, ctrl.row, d.dc, d.dr);
+      ctx.save();
+      ctx.strokeStyle = C.shell; ctx.globalAlpha = 0.75;
+      ctx.lineWidth = 2.5; ctx.setLineDash([6, 5]);
+      ctx.beginPath(); ctx.moveTo(c0.x, c0.y); ctx.lineTo(c1.x, c1.y); ctx.stroke();
+      ctx.restore();
+      const ang = Math.atan2(c1.y - c0.y, c1.x - c0.x);
+      ctx.save();
+      ctx.translate(c1.x, c1.y); ctx.rotate(ang);
+      ctx.fillStyle = C.shell; ctx.globalAlpha = 0.95;
+      ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-6, -10); ctx.lineTo(-6, 10);
+      ctx.closePath(); ctx.fill(); ctx.restore();
+      if (impact) {
+        const ic = cellCenter(impact.col, impact.row);
+        ctx.save();
+        ctx.globalAlpha = 0.28; ctx.fillStyle = C.shell;
+        ctx.beginPath(); ctx.arc(ic.x, ic.y, CFG.CELL * 1.5, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        ctx.save();
+        ctx.globalAlpha = 0.85; ctx.fillStyle = C.shell;
+        ctx.beginPath(); ctx.arc(ic.x, ic.y, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+    }
+  }
+
+  function drawAttackHighlights(ctrl) {
+    for (const n of getAdjacent(ctrl.col, ctrl.row)) {
+      const r = cellRect(n.col, n.row);
+      const target = state.pieces.get(key(n.col, n.row));
+      const isEnemy = target && target.owner !== state.turn;
+      ctx.fillStyle = isEnemy ? 'rgba(239,68,68,0.30)' : 'rgba(239,68,68,0.06)';
+      ctx.fillRect(r.x + 3, r.y + 3, r.w - 6, r.h - 6);
+      ctx.strokeStyle = isEnemy ? C.attack : 'rgba(239,68,68,0.25)';
+      ctx.lineWidth = isEnemy ? 2.5 : 1;
+      ctx.strokeRect(r.x + 3.5, r.y + 3.5, r.w - 7, r.h - 7);
+    }
+  }
+
+  function drawMoveHighlights(ctrl) {
+    const targets = getMoveTargets(ctrl.col, ctrl.row);
+    for (const t of targets) {
+      const r = cellRect(t.col, t.row);
+      ctx.fillStyle = 'rgba(34,197,94,0.20)';
+      ctx.fillRect(r.x + 3, r.y + 3, r.w - 6, r.h - 6);
+      ctx.strokeStyle = C.valid; ctx.lineWidth = 1.8;
+      ctx.strokeRect(r.x + 3.5, r.y + 3.5, r.w - 7, r.h - 7);
+      const bx = r.x + 12, by = r.y + 12;
+      ctx.fillStyle = 'rgba(34,197,94,0.9)';
+      ctx.beginPath(); ctx.arc(bx, by, 8, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = '900 11px ui-sans-serif, system-ui, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(t.step, bx, by + 0.5);
+    }
+  }
+
+  function drawSpawnHighlights(ctrl) {
+    const targets = getSpawnTargets(ctrl.col, ctrl.row);
+    for (const t of targets) {
+      const r = cellRect(t.col, t.row);
+      ctx.fillStyle = 'rgba(168,85,247,0.22)';
+      ctx.fillRect(r.x + 3, r.y + 3, r.w - 6, r.h - 6);
+      ctx.strokeStyle = C.spawn; ctx.lineWidth = 2;
+      ctx.strokeRect(r.x + 3.5, r.y + 3.5, r.w - 7, r.h - 7);
+      ctx.save();
+      ctx.translate(r.x + r.w/2, r.y + r.h/2);
+      ctx.globalAlpha = 0.4;
+      iconWarrior(ctx, r.w * 0.22);
+      ctx.restore();
+    }
+  }
+
+  function drawTransferHighlights() {
+    const tm = state.transferMode;
+    if (!tm) return;
+
+    if (tm.step === 'piece') {
+      for (const [k, piece] of state.pieces) {
+        if (piece.owner !== state.turn) continue;
+        const [col, row] = k.split(',').map(Number);
+        const r = cellRect(col, row);
+        ctx.fillStyle = 'rgba(168,85,247,0.20)';
+        ctx.fillRect(r.x + 3, r.y + 3, r.w - 6, r.h - 6);
+        ctx.strokeStyle = C.spawn; ctx.lineWidth = 2;
+        ctx.strokeRect(r.x + 3.5, r.y + 3.5, r.w - 7, r.h - 7);
+      }
+      for (let dc = -2; dc <= 2; dc++) {
+        for (let dr = -2; dr <= 2; dr++) {
+          const c = CORE_POS.col + dc, r2 = CORE_POS.row + dr;
+          if (!inBounds(c, r2)) continue;
+          if (c === CORE_POS.col && r2 === CORE_POS.row) continue;
+          const r = cellRect(c, r2);
+          ctx.strokeStyle = 'rgba(168,85,247,0.35)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 4]);
+          ctx.strokeRect(r.x + 5.5, r.y + 5.5, r.w - 11, r.h - 11);
+          ctx.setLineDash([]);
+        }
+      }
+    } else if (tm.step === 'target' && tm.source) {
+      const sr = cellRect(tm.source.col, tm.source.row);
+      ctx.strokeStyle = C.select; ctx.lineWidth = 2.5;
+      ctx.strokeRect(sr.x + 2, sr.y + 2, sr.w - 4, sr.h - 4);
+
+      for (let dc = -2; dc <= 2; dc++) {
+        for (let dr = -2; dr <= 2; dr++) {
+          const c = CORE_POS.col + dc, r2 = CORE_POS.row + dr;
+          if (!inBounds(c, r2)) continue;
+          if (c === CORE_POS.col && r2 === CORE_POS.row) continue;
+          if (c === tm.source.col && r2 === tm.source.row) continue;
+          if (state.pieces.has(key(c, r2))) continue;
+          const t = cellType(c, r2);
+          if (t === 'core' || t === 'beacon') continue;
+
+          const r = cellRect(c, r2);
+          ctx.fillStyle = 'rgba(168,85,247,0.24)';
+          ctx.fillRect(r.x + 3, r.y + 3, r.w - 6, r.h - 6);
+          ctx.strokeStyle = C.spawn; ctx.lineWidth = 2;
+          ctx.strokeRect(r.x + 3.5, r.y + 3.5, r.w - 7, r.h - 7);
+        }
+      }
+    }
+  }
+
+  // ==================== 炮弹 / 爆炸绘制 ====================
+  function drawShell(s) {
+    ctx.save();
+    ctx.shadowColor = C.shell; ctx.shadowBlur = 18;
+    const grad = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, 12);
+    grad.addColorStop(0.0, C.shellCore);
+    grad.addColorStop(0.4, C.shell);
+    grad.addColorStop(1.0, 'rgba(251,146,60,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(s.x, s.y, 12, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(s.x, s.y, 4, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawExplosion(e) {
+    const r = cellRect(e.col, e.row);
+    const cx = r.x + r.w/2, cy = r.y + r.h/2;
+    const p = Math.min(1, e.t / e.dur);
+    const alpha = 1 - p;
+    const radius = CFG.CELL * (0.35 + p * 1.5);
+
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.9;
+    const grad = ctx.createRadialGradient(cx, cy, radius * 0.15, cx, cy, radius);
+    grad.addColorStop(0.00, C.explosionHot);
+    grad.addColorStop(0.35, C.explosionMid);
+    grad.addColorStop(1.00, C.explosionEdge);
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    const coreR = CFG.CELL * 0.55 * (1 - p);
+    if (coreR > 0.5) {
+      ctx.fillStyle = `rgba(255, 255, 230, ${alpha})`;
+      ctx.beginPath(); ctx.arc(cx, cy, coreR, 0, Math.PI*2); ctx.fill();
+    }
+
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.85;
+    ctx.strokeStyle = C.shell;
+    ctx.lineWidth = 3 * (1 - p) + 1;
+    ctx.beginPath(); ctx.arc(cx, cy, radius * 0.9, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ==================== 主绘制 ====================
+  function draw() {
+    ctx.clearRect(0, 0, SIZE, SIZE);
+
+    for (let row = 0; row < CFG.N; row++)
+      for (let col = 0; col < CFG.N; col++)
+        drawFloor(col, row);
+
+    let placeableSet = null;
+    if (state.placing) {
+      const cells = getPlaceableCells(state.turn);
+      placeableSet = new Set(cells.map(c => key(c.col, c.row)));
+      for (const { col, row } of cells) {
+        const r = cellRect(col, row);
+        ctx.fillStyle = 'rgba(34,197,94,0.18)';
+        ctx.fillRect(r.x + 3, r.y + 3, r.w - 6, r.h - 6);
+        ctx.strokeStyle = C.valid; ctx.lineWidth = 1.5;
+        ctx.strokeRect(r.x + 3.5, r.y + 3.5, r.w - 7, r.h - 7);
+      }
+    }
+
+    if (state.controlled && state.controlAction === 'shoot') {
+      drawShootRays(state.controlled);
+    } else if (state.controlled && state.controlAction === 'shootCannon') {
+      drawCannonRays(state.controlled);
+    } else if (state.controlled && state.controlAction === 'attack') {
+      drawAttackHighlights(state.controlled);
+    } else if (state.controlled && state.controlAction === 'move') {
+      drawMoveHighlights(state.controlled);
+    } else if (state.controlled && state.controlAction === 'spawn') {
+      drawSpawnHighlights(state.controlled);
+    }
+
+    if (state.transferMode) drawTransferHighlights();
+
+    for (const [k, piece] of state.pieces) {
+      const [col, row] = k.split(',').map(Number);
+      drawPiece(col, row, piece);
+    }
+
+    if (placeableSet && state.hover &&
+        placeableSet.has(key(state.hover.col, state.hover.row))) {
+      const def = PIECE_TYPES[state.placing];
+      drawPieceVisual(state.hover.col, state.hover.row, {
+        type: state.placing, owner: state.turn,
+        hp: def.maxHp, maxHp: def.maxHp,
+      }, 0.68);
+    }
+
+    if (state.controlled) {
+      const r = cellRect(state.controlled.col, state.controlled.row);
+      ctx.strokeStyle = C.select; ctx.lineWidth = 2.5;
+      ctx.strokeRect(r.x + 2, r.y + 2, r.w - 4, r.h - 4);
+    }
+
+    if (state.hover) {
+      const r = cellRect(state.hover.col, state.hover.row);
+      ctx.strokeStyle = C.hover; ctx.lineWidth = 2;
+      ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+    }
+
+    for (const a of state.arrows) {
+      const ang = Math.atan2(a.ty - a.y0, a.tx - a.x0);
+      ctx.save();
+      ctx.translate(a.x, a.y); ctx.rotate(ang);
+      ctx.shadowColor = a.owner === 1 ? '#60a5fa' : '#f87171';
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = a.owner === 1 ? '#bfdbfe' : '#fecaca';
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(14, 0); ctx.lineTo(-7, -6); ctx.lineTo(-3, 0); ctx.lineTo(-7, 6);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+
+    for (const s of state.shells) drawShell(s);
+    for (const e of state.explosions) drawExplosion(e);
+  }
+
+  // ==================== 邻格 / 放置 ====================
+  function getAdjacent(col, row) {
+    const out = [];
+    for (let dc = -1; dc <= 1; dc++) {
+      for (let dr = -1; dr <= 1; dr++) {
+        if (dc === 0 && dr === 0) continue;
+        const c = col + dc, r = row + dr;
+        if (inBounds(c, r)) out.push({ col: c, row: r });
+      }
+    }
+    return out;
+  }
+
+  function getPlaceableCells(player) {
+    const set = new Set();
+    for (const [k, piece] of state.pieces) {
+      if (piece.owner !== player) continue;
+      const [col, row] = k.split(',').map(Number);
+      for (const n of getAdjacent(col, row)) {
+        const t = cellType(n.col, n.row);
+        if (t === 'core' || t === 'beacon') continue;
+        if (!state.pieces.has(key(n.col, n.row))) set.add(key(n.col, n.row));
+      }
+    }
+    return [...set].map(k => {
+      const [col, row] = k.split(',').map(Number);
+      return { col, row };
+    });
+  }
+
+  function getMoveTargets(col, row) {
+    const piece = state.pieces.get(key(col, row));
+    if (!piece) return [];
+    const def = PIECE_TYPES[piece.type];
+    if (!def.move) return [];
+    const dirs = def.move.dirs === 'all8' ? DIRS8 : DIRS4;
+    const range = def.move.range;
+
+    const out = [];
+    for (const d of dirs) {
+      for (let step = 1; step <= range; step++) {
+        const c = col + d.dc * step, r = row + d.dr * step;
+        if (!inBounds(c, r)) break;
+        if (state.pieces.has(key(c, r))) break;
+        const t = cellType(c, r);
+        if (t === 'core' || t === 'beacon') break;
+        out.push({ col: c, row: r, step });
+      }
+    }
+    return out;
+  }
+
+  function getSpawnTargets(col, row) {
+    const out = [];
+    for (const n of getAdjacent(col, row)) {
+      if (state.pieces.has(key(n.col, n.row))) continue;
+      const t = cellType(n.col, n.row);
+      if (t === 'core' || t === 'beacon') continue;
+      out.push(n);
+    }
+    return out;
+  }
+
+  function getTransferTargets() {
+    const out = [];
+    for (let dc = -2; dc <= 2; dc++) {
+      for (let dr = -2; dr <= 2; dr++) {
+        const c = CORE_POS.col + dc, r = CORE_POS.row + dr;
+        if (!inBounds(c, r)) continue;
+        if (c === CORE_POS.col && r === CORE_POS.row) continue;
+        if (state.pieces.has(key(c, r))) continue;
+        const t = cellType(c, r);
+        if (t === 'core' || t === 'beacon') continue;
+        out.push({ col: c, row: r });
+      }
+    }
+    return out;
+  }
+
+  // ==================== 射线 ====================
+  function findTargetAlongRay(col, row, dc, dr) {
+    let c = col + dc, r = row + dr;
+    while (inBounds(c, r)) {
+      if (state.pieces.has(key(c, r))) return { col: c, row: r, isPiece: true };
+      if (cellType(c, r) === 'core') return { col: c, row: r, isPiece: false };
+      c += dc; r += dr;
+    }
+    return null;
+  }
+
+  function findShellImpact(col, row, dc, dr) {
+    let c = col + dc, r = row + dr;
+    let last = null;
+    while (inBounds(c, r)) {
+      last = { col: c, row: r };
+      if (state.pieces.has(key(c, r))) return { col: c, row: r, type: 'piece' };
+      const t = cellType(c, r);
+      if (t === 'core')   return { col: c, row: r, type: 'core' };
+      if (t === 'beacon') return { col: c, row: r, type: 'beacon' };
+      c += dc; r += dr;
+    }
+    if (last) return { col: last.col, row: last.row, type: 'edge' };
+    return { col, row, type: 'edge' };
+  }
+
+  // ==================== 屏幕震动 ====================
+  function shakeCanvas(intensity = 7, duration = 280) {
+    const start = performance.now();
+    function tick() {
+      const elapsed = performance.now() - start;
+      if (elapsed > duration) { canvas.style.transform = ''; return; }
+      const k = 1 - elapsed / duration;
+      const dx = (Math.random() - 0.5) * intensity * k;
+      const dy = (Math.random() - 0.5) * intensity * k;
+      canvas.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+      requestAnimationFrame(tick);
+    }
+    tick();
+  }
+
+  // ==================== 回合横幅 ====================
+  const bannerBox   = document.getElementById('bannerContent');
+  const bannerTitle = document.getElementById('bannerTitle');
+  const bannerSub   = document.getElementById('bannerSub');
+
+  function showTurnBanner(player, gained, extras) {
+    bannerTitle.textContent = `玩家 ${player} 回合`;
+    bannerTitle.classList.toggle('p2', player === 2);
+
+    bannerBox.style.borderColor = player === 1 ? '#3b82f6' : '#ef4444';
+    bannerBox.style.boxShadow = player === 1
+      ? '0 0 60px rgba(59,130,246,0.5)'
+      : '0 0 60px rgba(239,68,68,0.5)';
+
+    bannerSub.classList.remove('beacon');
+
+    const parts = [];
+    if (gained > 0) parts.push(`+${gained} 陨石`);
+    if (extras && extras.coreYield) parts.push('星核收益生效');
+    if (extras && extras.beaconCount > 0) {
+      parts.push(`信标 ${extras.beaconCount} · 伤害+1概率 ${extras.beaconChance}`);
+    }
+
+    if (parts.length > 0) {
+      bannerSub.textContent = parts.join(' · ');
+      bannerSub.classList.add('show');
+      if (extras && extras.beaconCount > 0) bannerSub.classList.add('beacon');
+    } else {
+      bannerSub.textContent = '';
+      bannerSub.classList.remove('show');
+    }
+
+    bannerBox.classList.remove('play');
+    void bannerBox.offsetWidth;
+    bannerBox.classList.add('play');
+  }
+
+  // ==================== 伤害结算（含强防 + 信标加成） ====================
+  function dealDamage(piece, baseAmount) {
+    const attacker = state.turn;
+    const defender = piece.owner;
+
+    // 星核强防（防守方）
+    let reduction = 0;
+    if (state.starCore.owner === defender &&
+        state.starCore.function === 'defense') {
+      reduction = 1;
+    }
+
+    // 信标加成（攻击方）——只对敌方生效，每次独立掷骰
+    let bonus = 0;
+    if (attacker !== defender) {
+      const beaconCount = countBeaconsOwnedBy(attacker);
+      const buff = BEACON_BUFF[beaconCount];
+      if (buff && Math.random() < buff.chance) bonus = 1;
+    }
+
+    const amount = Math.max(1, baseAmount + bonus - reduction);
+    piece.hp -= amount;
+    return amount;
+  }
+
+  // ==================== 回合与动作 ====================
+  function startTurn(player) {
+    let gained = 0;
+    for (const [, piece] of state.pieces) {
+      if (piece.owner !== player) continue;
+      const def = PIECE_TYPES[piece.type];
+      if (def.kind === 'producer') {
+        state.meteors[player] += def.produce;
+        gained += def.produce;
+      }
+    }
+
+    const extras = { coreYield: false, beaconCount: 0, beaconChance: '' };
+
+    if (state.starCore.owner === player && state.starCore.function === 'yield') {
+      const boosted = Math.floor(gained * 1.17);
+      const bonus = boosted - gained;
+      if (bonus > 0) {
+        state.meteors[player] += bonus;
+        gained = boosted;
+        extras.coreYield = true;
+      }
+    }
+
+    const bc = countBeaconsOwnedBy(player);
+    if (bc > 0) {
+      extras.beaconCount = bc;
+      extras.beaconChance = BEACON_BUFF[bc].name;
+    }
+
+    return { gained, extras };
+  }
+
+  function resetControl() {
+    state.controlled = null;
+    state.controlAction = null;
+    refreshActionMenu();
+  }
+  function resetTransfer() { state.transferMode = null; }
+
+  function endTurn() {
+    if (state.gameOver) return;
+    state.turn = 3 - state.turn;
+    state.placing = null;
+    state.openCategory = null;
+    resetControl();
+    resetTransfer();
+
+    const result = startTurn(state.turn);
+    updateHUD();
+    showTurnBanner(state.turn, result.gained, result.extras);
+  }
+
+  function doPlace(type, col, row) {
+    const def = PIECE_TYPES[type];
+    if (!def || def.cost === undefined) return false;
+    if (state.meteors[state.turn] < def.cost) return false;
+    if (state.pieces.has(key(col, row))) return false;
+    const legal = getPlaceableCells(state.turn).some(c => c.col === col && c.row === row);
+    if (!legal) return false;
+
+    state.meteors[state.turn] -= def.cost;
+    state.pieces.set(key(col, row), {
+      type, owner: state.turn, hp: def.maxHp, maxHp: def.maxHp,
+    });
+    updateAllStructures();
+    endTurn();
+    return true;
+  }
+
+  function doShoot(col, row, dc, dr) {
+    const piece = state.pieces.get(key(col, row));
+    if (!piece || piece.owner !== state.turn) return false;
+
+    const hit = findTargetAlongRay(col, row, dc, dr);
+    const start = cellCenter(col, row);
+    let end, target = null;
+
+    if (hit) {
+      end = cellCenter(hit.col, hit.row);
+      if (hit.isPiece) target = { col: hit.col, row: hit.row };
+    } else {
+      let c = col, r = row;
+      while (inBounds(c + dc, r + dr)) { c += dc; r += dr; }
+      const outCol = c + dc, outRow = r + dr;
+      end = { x: (outCol + 0.5) * CFG.CELL, y: (CFG.N - outRow - 0.5) * CFG.CELL };
+    }
+
+    const dist = Math.hypot(end.x - start.x, end.y - start.y);
+    const dur = Math.max(0.12, dist / 1500);
+
+    state.arrows.push({
+      x0: start.x, y0: start.y, x: start.x, y: start.y,
+      tx: end.x, ty: end.y, t: 0, dur, owner: piece.owner, target,
+    });
+    endTurn();
+    return true;
+  }
+
+  function doShootCannon(col, row, dc, dr) {
+    const piece = state.pieces.get(key(col, row));
+    if (!piece || piece.owner !== state.turn) return false;
+    if (piece.type !== 'cannon') return false;
+
+    const impact = findShellImpact(col, row, dc, dr);
+    const start = cellCenter(col, row);
+    const end = cellCenter(impact.col, impact.row);
+    const dist = Math.hypot(end.x - start.x, end.y - start.y);
+    const dur = Math.max(0.18, dist / 900);
+
+    state.shells.push({
+      x0: start.x, y0: start.y, x: start.x, y: start.y,
+      tx: end.x, ty: end.y, t: 0, dur, owner: piece.owner,
+      impactCell: { col: impact.col, row: impact.row },
+    });
+    endTurn();
+    return true;
+  }
+
+  function doMeleeAttack(fromCol, fromRow, toCol, toRow) {
+    const attacker = state.pieces.get(key(fromCol, fromRow));
+    if (!attacker) return false;
+    const target = state.pieces.get(key(toCol, toRow));
+    if (!target) return false;
+    if (target.owner === attacker.owner) return false;
+
+    const dmg = PIECE_TYPES[attacker.type].attackDamage || 1;
+    dealDamage(target, dmg);
+    if (target.hp <= 0) {
+      state.pieces.delete(key(toCol, toRow));
+      updateAllStructures();
+      if (target.type === 'base') gameOverEnd(target.owner === 1 ? 2 : 1);
+    }
+    endTurn();
+    return true;
+  }
+
+  function doMove(fromCol, fromRow, toCol, toRow) {
+    const piece = state.pieces.get(key(fromCol, fromRow));
+    if (!piece) return false;
+    state.pieces.delete(key(fromCol, fromRow));
+    state.pieces.set(key(toCol, toRow), piece);
+    updateAllStructures();
+    endTurn();
+    return true;
+  }
+
+  function doSpawn(fromCol, fromRow, toCol, toRow) {
+    const mage = state.pieces.get(key(fromCol, fromRow));
+    if (!mage) return false;
+    const def = PIECE_TYPES[mage.type];
+    if (!def.spawnType) return false;
+    if (state.pieces.has(key(toCol, toRow))) return false;
+
+    const spawned = PIECE_TYPES[def.spawnType];
+    state.pieces.set(key(toCol, toRow), {
+      type: def.spawnType, owner: mage.owner, hp: spawned.maxHp, maxHp: spawned.maxHp,
+    });
+    updateAllStructures();
+    endTurn();
+    return true;
+  }
+
+  function activateCoreFunction(fnName) {
+    if (state.starCore.owner !== state.turn) return false;
+    if (state.starCore.function === fnName) return false;
+
+    const fn = CORE_FUNCTIONS[fnName];
+    if (!fn) return false;
+
+    if (fnName === 'transfer') {
+      if (state.meteors[state.turn] < 40) return false;
+      state.transferMode = { step: 'piece', source: null };
+      state.openCategory = null;
+      refreshBottomBar();
+      updateHUD();
+      draw();
+      return true;
+    }
+
+    if (state.meteors[state.turn] < 10) return false;
+    state.meteors[state.turn] -= 10;
+    state.starCore.function = fnName;
+    state.openCategory = null;
+    refreshBottomBar();
+    updateHUD();
+    draw();
+    return true;
+  }
+
+  function executeTransfer(fromCol, fromRow, toCol, toRow) {
+    const piece = state.pieces.get(key(fromCol, fromRow));
+    if (!piece || piece.owner !== state.turn) return false;
+    if (state.pieces.has(key(toCol, toRow))) return false;
+    if (Math.abs(toCol - CORE_POS.col) > 2 || Math.abs(toRow - CORE_POS.row) > 2) return false;
+    const t = cellType(toCol, toRow);
+    if (t === 'core' || t === 'beacon') return false;
+    if (state.meteors[state.turn] < 40) return false;
+
+    state.meteors[state.turn] -= 40;
+    state.pieces.delete(key(fromCol, fromRow));
+    state.pieces.set(key(toCol, toRow), piece);
+
+    state.transferMode = null;
+    updateAllStructures();
+    endTurn();
+    return true;
+  }
+
+  // ==================== 爆炸 ====================
+  function applyAreaDamage(col, row, dmg) {
+    if (state.gameOver) return;
+    const p = state.pieces.get(key(col, row));
+    if (!p) return;
+    dealDamage(p, dmg);
+    if (p.hp <= 0) {
+      state.pieces.delete(key(col, row));
+      updateAllStructures();
+      if (p.type === 'base') gameOverEnd(p.owner === 1 ? 2 : 1);
+    }
+  }
+
+  function doExplode(col, row) {
+    state.explosions.push({ col, row, t: 0, dur: 0.6 });
+    shakeCanvas(7, 280);
+    applyAreaDamage(col, row, 7);
+    for (const n of getAdjacent(col, row)) {
+      applyAreaDamage(n.col, n.row, 3);
+    }
+  }
+
+  function applyArrowDamage(arrow) {
+    if (!arrow.target) return;
+    const k = key(arrow.target.col, arrow.target.row);
+    const piece = state.pieces.get(k);
+    if (!piece) return;
+
+    dealDamage(piece, 1);
+    if (piece.hp <= 0) {
+      state.pieces.delete(k);
+      updateAllStructures();
+      if (piece.type === 'base') gameOverEnd(piece.owner === 1 ? 2 : 1);
+    }
+  }
+
+  function gameOverEnd(winner) {
+    state.gameOver = true;
+    document.getElementById('resultText').textContent = `玩家 ${winner} 胜利`;
+    document.getElementById('overlay').classList.add('show');
+  }
+
+  function updateArrows(dt) {
+    if (state.arrows.length === 0) return;
+    for (let i = state.arrows.length - 1; i >= 0; i--) {
+      const a = state.arrows[i];
+      a.t += dt / a.dur;
+      if (a.t >= 1) {
+        applyArrowDamage(a);
+        state.arrows.splice(i, 1);
+      } else {
+        a.x = a.x0 + (a.tx - a.x0) * a.t;
+        a.y = a.y0 + (a.ty - a.y0) * a.t;
+      }
+    }
+  }
+
+  function updateShells(dt) {
+    if (state.shells.length === 0) return;
+    for (let i = state.shells.length - 1; i >= 0; i--) {
+      const s = state.shells[i];
+      s.t += dt / s.dur;
+      if (s.t >= 1) {
+        doExplode(s.impactCell.col, s.impactCell.row);
+        state.shells.splice(i, 1);
+      } else {
+        s.x = s.x0 + (s.tx - s.x0) * s.t;
+        s.y = s.y0 + (s.ty - s.y0) * s.t;
+      }
+    }
+  }
+
+  function updateExplosions(dt) {
+    if (state.explosions.length === 0) return;
+    for (let i = state.explosions.length - 1; i >= 0; i--) {
+      const e = state.explosions[i];
+      e.t += dt;
+      if (e.t >= e.dur) state.explosions.splice(i, 1);
+    }
+  }
+
+  // ==================== 底部 UI ====================
+  const catBarEl = document.getElementById('catBar');
+  const piecePanelEl = document.getElementById('piecePanel');
+  const actionMenuEl = document.getElementById('actionMenu');
+  const hintEl = document.getElementById('hint');
+
+  let coreTabEl = null;
+
+  (function buildCatBar() {
+    coreTabEl = document.createElement('button');
+    coreTabEl.className = 'cat-tab core-tab';
+    coreTabEl.innerHTML = `<span class="cat-emoji">☀</span>星核 <span class="core-status" id="coreStatus">中立</span>`;
+    coreTabEl.addEventListener('click', () => {
+      if (state.gameOver) return;
+      if (state.openCategory === '__core__') {
+        state.openCategory = null;
+      } else {
+        state.openCategory = '__core__';
+        state.placing = null;
+        resetControl();
+      }
+      refreshBottomBar();
+      updateHUD();
+      draw();
+    });
+    catBarEl.appendChild(coreTabEl);
+
+    const cats = Object.entries(CATEGORIES).sort((a, b) => a[1].order - b[1].order);
+    for (const [catId, cat] of cats) {
+      const btn = document.createElement('button');
+      btn.className = 'cat-tab';
+      btn.dataset.cat = catId;
+      btn.innerHTML = `<span class="cat-emoji">${cat.emoji}</span>${cat.name}`;
+      btn.addEventListener('click', () => {
+        if (state.gameOver) return;
+        if (state.openCategory === catId) {
+          state.openCategory = null;
+        } else {
+          state.openCategory = catId;
+          state.placing = null;
+          resetControl();
+        }
+        refreshBottomBar();
+        updateHUD();
+        draw();
+      });
+      catBarEl.appendChild(btn);
+    }
+  })();
+
+  function renderCardIcon(canvasEl, type, owner) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const W = 56, H = 56;
+    canvasEl.width = W * dpr; canvasEl.height = H * dpr;
+    canvasEl.style.width = W + 'px'; canvasEl.style.height = H + 'px';
+    const c = canvasEl.getContext('2d');
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.clearRect(0, 0, W, H);
+    paintPieceBody(c, W/2, H/2, W - 6, type, owner);
+  }
+
+  function refreshBottomBar() {
+    document.querySelectorAll('.cat-tab').forEach(btn => {
+      const cat = btn.dataset.cat;
+      if (cat) {
+        btn.classList.toggle('active', state.openCategory === cat);
+        btn.disabled = state.gameOver;
+      }
+    });
+
+    if (coreTabEl) {
+      const owner = state.starCore.owner;
+      const statusEl = coreTabEl.querySelector('#coreStatus');
+      coreTabEl.classList.toggle('active', state.openCategory === '__core__');
+      coreTabEl.classList.toggle('p1-own', owner === 1);
+      coreTabEl.classList.toggle('p2-own', owner === 2);
+
+      if (owner === 0) {
+        statusEl.textContent = '中立';
+        coreTabEl.disabled = true;
+      } else if (owner === state.turn && !state.gameOver) {
+        const fnName = state.starCore.function
+          ? CORE_FUNCTIONS[state.starCore.function].name
+          : '未激活';
+        statusEl.textContent = fnName;
+        coreTabEl.disabled = false;
+      } else {
+        statusEl.textContent = '对手占领';
+        coreTabEl.disabled = true;
+      }
+    }
+
+    piecePanelEl.innerHTML = '';
+
+    if (state.openCategory === '__core__') {
+      renderCorePanel();
+      piecePanelEl.classList.add('show');
+      return;
+    }
+
+    if (!state.openCategory) {
+      piecePanelEl.classList.remove('show');
+      return;
+    }
+
+    const types = Object.entries(PIECE_TYPES)
+      .filter(([id, def]) => def.category === state.openCategory && def.cost > 0);
+
+    for (const [typeId, def] of types) {
+      const affordable = state.meteors[state.turn] >= def.cost;
+
+      const card = document.createElement('div');
+      card.className = 'piece-card' + (affordable && !state.gameOver ? '' : ' disabled');
+
+      const iconCanvas = document.createElement('canvas');
+      iconCanvas.className = 'card-icon';
+
+      const body = document.createElement('div');
+      body.className = 'card-body';
+
+      const nameRow = document.createElement('div');
+      nameRow.className = 'card-name';
+      nameRow.innerHTML = `${def.name}<span class="card-tag">${CATEGORIES[def.category].name}</span>`;
+
+      const desc = document.createElement('div');
+      desc.className = 'card-desc';
+      desc.textContent = def.desc || '';
+
+      const footer = document.createElement('div');
+      footer.className = 'card-footer';
+
+      const cost = document.createElement('span');
+      cost.className = 'card-cost';
+      cost.textContent = def.cost;
+
+      const placeBtn = document.createElement('button');
+      placeBtn.className = 'card-btn';
+      placeBtn.textContent = '放置';
+      placeBtn.disabled = !affordable || state.gameOver;
+      placeBtn.addEventListener('click', () => {
+        state.placing = typeId;
+        resetControl();
+        state.openCategory = null;
+        refreshBottomBar();
+        updateHUD();
+        draw();
+      });
+
+      footer.appendChild(cost);
+      footer.appendChild(placeBtn);
+      body.appendChild(nameRow);
+      body.appendChild(desc);
+      body.appendChild(footer);
+      card.appendChild(iconCanvas);
+      card.appendChild(body);
+      piecePanelEl.appendChild(card);
+      renderCardIcon(iconCanvas, typeId, state.turn);
+    }
+
+    piecePanelEl.classList.add('show');
+  }
+
+  function renderCorePanel() {
+    const owner = state.starCore.owner;
+    const ownerCard = document.createElement('div');
+    ownerCard.className = 'piece-card';
+    ownerCard.style.width = '260px';
+    const ownerBody = document.createElement('div');
+    ownerBody.className = 'card-body';
+
+    const ownerColor = owner === 1 ? '#60a5fa' : owner === 2 ? '#f87171' : '#fbbf24';
+    const ownerText = owner === 0 ? '中立' : `玩家 ${owner} 占领`;
+    let p1 = 0, p2 = 0;
+    for (const n of getAdjacent(CORE_POS.col, CORE_POS.row)) {
+      const p = state.pieces.get(key(n.col, n.row));
+      if (!p) continue;
+      if (p.owner === 1) p1++;
+      else if (p.owner === 2) p2++;
+    }
+
+    ownerBody.innerHTML = `
+      <div class="card-name" style="color:${ownerColor}">星核状态</div>
+      <div class="card-desc">
+        当前归属：<b style="color:${ownerColor}">${ownerText}</b><br>
+        周围 8 格：<b style="color:#60a5fa">P1 ${p1}</b> vs <b style="color:#f87171">P2 ${p2}</b>
+      </div>
+    `;
+    ownerCard.appendChild(ownerBody);
+    piecePanelEl.appendChild(ownerCard);
+
+    const canActivate = owner === state.turn && !state.gameOver;
+
+    for (const [fnId, fn] of Object.entries(CORE_FUNCTIONS)) {
+      const isCurrent = state.starCore.function === fnId;
+      const cost = fnId === 'transfer' ? 40 : 10;
+      const affordable = state.meteors[state.turn] >= cost;
+
+      const card = document.createElement('div');
+      card.className = 'piece-card' + (isCurrent ? ' current' : '');
+      if (!canActivate || (!affordable && !isCurrent)) card.classList.add('disabled');
+
+      const body = document.createElement('div');
+      body.className = 'card-body';
+
+      const nameRow = document.createElement('div');
+      nameRow.className = 'card-name';
+      nameRow.innerHTML = `${fn.name}<span class="card-tag gold">${fn.icon}</span>`;
+
+      const desc = document.createElement('div');
+      desc.className = 'card-desc';
+      desc.textContent = fn.desc;
+
+      const footer = document.createElement('div');
+      footer.className = 'card-footer';
+
+      const costEl = document.createElement('span');
+      costEl.className = 'card-cost';
+      costEl.textContent = cost;
+
+      const btn = document.createElement('button');
+      btn.className = 'card-btn';
+      btn.textContent = isCurrent ? '当前' : '激活';
+      btn.disabled = !canActivate || isCurrent || !affordable;
+      btn.addEventListener('click', () => activateCoreFunction(fnId));
+
+      footer.appendChild(costEl);
+      footer.appendChild(btn);
+      body.appendChild(nameRow);
+      body.appendChild(desc);
+      body.appendChild(footer);
+      card.appendChild(body);
+      piecePanelEl.appendChild(card);
+    }
+  }
+
+  function refreshActionMenu() {
+    actionMenuEl.innerHTML = '';
+
+    if (state.transferMode) {
+      const label = document.createElement('span');
+      label.className = 'action-menu-label';
+      label.textContent = state.transferMode.step === 'piece'
+        ? '选择要转移的己方棋子' : '选择目标格';
+      actionMenuEl.appendChild(label);
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'action-btn cancel';
+      cancelBtn.textContent = '取消';
+      cancelBtn.addEventListener('click', () => {
+        state.transferMode = null;
+        refreshActionMenu();
+        updateHUD();
+        draw();
+      });
+      actionMenuEl.appendChild(cancelBtn);
+      actionMenuEl.classList.add('show');
+      return;
+    }
+
+    if (!state.controlled || state.controlAction) {
+      actionMenuEl.classList.remove('show');
+      return;
+    }
+
+    const piece = state.pieces.get(key(state.controlled.col, state.controlled.row));
+    if (!piece) { actionMenuEl.classList.remove('show'); return; }
+
+    const def = PIECE_TYPES[piece.type];
+    if (!def.actions || def.actions.length < 2) {
+      actionMenuEl.classList.remove('show');
+      return;
+    }
+
+    const label = document.createElement('span');
+    label.className = 'action-menu-label';
+    label.textContent = `${def.name} —`;
+    actionMenuEl.appendChild(label);
+
+    for (const actId of def.actions) {
+      const btn = document.createElement('button');
+      btn.className = 'action-btn';
+      btn.textContent = ACTIONS[actId].name;
+      btn.addEventListener('click', () => {
+        state.controlAction = actId;
+        refreshActionMenu();
+        refreshBottomBar();
+        updateHUD();
+        draw();
+      });
+      actionMenuEl.appendChild(btn);
+    }
+    actionMenuEl.classList.add('show');
+  }
+
+  // ==================== HUD ====================
+  function updateHUD() {
+    document.getElementById('m1').textContent = state.meteors[1];
+    document.getElementById('m2').textContent = state.meteors[2];
+
+    const el = document.getElementById('turnLabel');
+    el.textContent = `玩家 ${state.turn} 回合`;
+    el.classList.toggle('p2', state.turn === 2);
+
+    // 信标数量显示
+    const bc1 = countBeaconsOwnedBy(1);
+    const bc2 = countBeaconsOwnedBy(2);
+    const b1El = document.getElementById('b1');
+    const b2El = document.getElementById('b2');
+    b1El.textContent = `⬢ ${bc1}`;
+    b2El.textContent = `⬢ ${bc2}`;
+    b1El.classList.toggle('active', bc1 > 0);
+    b2El.classList.toggle('active', bc2 > 0);
+    // 当前玩家的信标高亮
+    b1El.style.opacity = state.turn === 1 ? '1' : '0.65';
+    b2El.style.opacity = state.turn === 2 ? '1' : '0.65';
+
+    refreshBottomBar();
+    refreshActionMenu();
+
+    let hint;
+    if (state.gameOver) {
+      hint = '游戏结束';
+    } else if (state.arrows.length > 0 || state.shells.length > 0) {
+      hint = '炮弹飞行中…';
+    } else if (state.transferMode) {
+      hint = state.transferMode.step === 'piece'
+        ? '【转移】选择要转移的己方棋子'
+        : '【转移】选择星核周围 5×5 内的空格（消耗 40 陨石 + 本回合）';
+    } else if (state.placing) {
+      const def = PIECE_TYPES[state.placing];
+      hint = `选择绿色格放置「${def.name}」（hp ${def.maxHp}）`;
+    } else if (state.controlled && state.controlAction) {
+      const p = state.pieces.get(key(state.controlled.col, state.controlled.row));
+      const def = p ? PIECE_TYPES[p.type] : null;
+      const tag = p ? `「${def.name}」hp ${p.hp}/${p.maxHp}` : '';
+
+      // 信标增益提示
+      const bc = countBeaconsOwnedBy(state.turn);
+      const beaconTip = bc > 0 ? `（信标 ${BEACON_BUFF[bc].name} +1 伤害）` : '';
+
+      switch (state.controlAction) {
+        case 'shoot':
+          hint = `${tag} — 选择方向发射箭矢 ${beaconTip}`; break;
+        case 'shootCannon':
+          hint = `${tag} — 选择方向发射炮弹（中心 7，周围 3） ${beaconTip}`; break;
+        case 'attack':
+          hint = `${tag} — 点击红色格中的敌方目标（${def.attackDamage} 点伤害） ${beaconTip}`; break;
+        case 'move':
+          hint = `${tag} — 点击绿色格移动（最多 ${def.move.range} 格）`; break;
+        case 'spawn':
+          hint = `${tag} — 点击紫色格生成一个${PIECE_TYPES[def.spawnType].name}`; break;
+        default:
+          hint = tag;
+      }
+    } else if (state.controlled) {
+      const p = state.pieces.get(key(state.controlled.col, state.controlled.row));
+      const def = p ? PIECE_TYPES[p.type] : null;
+      hint = p
+        ? `「${def.name}」hp ${p.hp}/${p.maxHp} — 选择要执行的动作`
+        : '选择要执行的动作';
+    } else if (state.openCategory === '__core__') {
+      const owner = state.starCore.owner;
+      if (owner === 0) hint = '星核中立 — 周围 8 格内己方棋子数需多于敌方';
+      else if (owner === state.turn) hint = '星核由你占领 — 可消耗陨石激活功能';
+      else hint = '星核由对手占领 — 需在周围 8 格内超过对手棋子数';
+    } else if (state.openCategory) {
+      hint = '选择一张卡片，点击「放置」';
+    } else {
+      hint = '选择下方分类，再选择棋子放置；或点击己方棋子行动';
+    }
+
+    if (state.hover) {
+      const hovered = state.pieces.get(key(state.hover.col, state.hover.row));
+      const isCtrl = state.controlled &&
+        state.controlled.col === state.hover.col &&
+        state.controlled.row === state.hover.row;
+      if (hovered && !isCtrl) {
+        const def = PIECE_TYPES[hovered.type];
+        hint = `【${def.name} hp ${hovered.hp}/${hovered.maxHp}】 ${hint}`;
+      } else if (state.hover.col === CORE_POS.col && state.hover.row === CORE_POS.row) {
+        const owner = state.starCore.owner;
+        const ownerText = owner === 0 ? '中立' : `玩家 ${owner}`;
+        hint = `【星核 · ${ownerText}】 ${hint}`;
+      } else if (BEACONS.some(b => b.col === state.hover.col && b.row === state.hover.row)) {
+        const bp = BEACONS.find(b => b.col === state.hover.col && b.row === state.hover.row);
+        const owner = state.beacons.get(key(bp.col, bp.row)) ?? 0;
+        const ownerText = owner === 0 ? '中立' : `玩家 ${owner}`;
+        hint = `【信标 · ${ownerText}】 ${hint}`;
+      }
+    }
+
+    hintEl.textContent = hint;
+  }
+
+  // ==================== Input ====================
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const cell = pixelToCell(e.clientX - rect.left, e.clientY - rect.top);
+    const prev = state.hover;
+    const same = prev && cell && prev.col === cell.col && prev.row === cell.row;
+    if (same || (!prev && !cell)) return;
+    state.hover = cell;
+    draw();
+    updateHUD();
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    if (!state.hover) return;
+    state.hover = null;
+    draw();
+    updateHUD();
+  });
+
+  canvas.addEventListener('click', (e) => {
+    if (state.gameOver) return;
+    if (state.arrows.length > 0 || state.shells.length > 0) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const cell = pixelToCell(e.clientX - rect.left, e.clientY - rect.top);
+
+    if (!cell) {
+      state.placing = null;
+      state.openCategory = null;
+      resetControl();
+      resetTransfer();
+      updateHUD(); draw();
+      return;
+    }
+
+    if (state.transferMode) {
+      const tm = state.transferMode;
+      const clickedPiece = state.pieces.get(key(cell.col, cell.row));
+
+      if (tm.step === 'piece') {
+        if (clickedPiece && clickedPiece.owner === state.turn) {
+          state.transferMode = { step: 'target', source: { col: cell.col, row: cell.row } };
+          refreshActionMenu(); updateHUD(); draw();
+          return;
+        }
+        state.transferMode = null;
+        refreshActionMenu(); updateHUD(); draw();
+        return;
+      }
+
+      if (tm.step === 'target') {
+        if (clickedPiece && clickedPiece.owner === state.turn &&
+            !(cell.col === tm.source.col && cell.row === tm.source.row)) {
+          state.transferMode = { step: 'target', source: { col: cell.col, row: cell.row } };
+          updateHUD(); draw();
+          return;
+        }
+        if (clickedPiece && clickedPiece.owner === state.turn &&
+            cell.col === tm.source.col && cell.row === tm.source.row) {
+          state.transferMode = { step: 'piece', source: null };
+          refreshActionMenu(); updateHUD(); draw();
+          return;
+        }
+        const targets = getTransferTargets();
+        const hit = targets.find(t => t.col === cell.col && t.row === cell.row);
+        if (hit) {
+          executeTransfer(tm.source.col, tm.source.row, cell.col, cell.row);
+          updateHUD(); draw();
+          return;
+        }
+        state.transferMode = null;
+        refreshActionMenu(); updateHUD(); draw();
+        return;
+      }
+    }
+
+    if (state.controlled && state.controlAction) {
+      const ctrl = state.controlled;
+      const dc = cell.col - ctrl.col;
+      const dr = cell.row - ctrl.row;
+      const inAdj8 = Math.abs(dc) <= 1 && Math.abs(dr) <= 1 && (dc !== 0 || dr !== 0);
+
+      if (state.controlAction === 'shoot' && inAdj8) {
+        doShoot(ctrl.col, ctrl.row, dc, dr); updateHUD(); draw(); return;
+      }
+      if (state.controlAction === 'shootCannon' && inAdj8) {
+        doShootCannon(ctrl.col, ctrl.row, dc, dr); updateHUD(); draw(); return;
+      }
+      if (state.controlAction === 'attack' && inAdj8) {
+        const target = state.pieces.get(key(cell.col, cell.row));
+        if (target && target.owner !== state.turn) {
+          doMeleeAttack(ctrl.col, ctrl.row, cell.col, cell.row);
+          updateHUD(); draw(); return;
+        }
+        return;
+      }
+      if (state.controlAction === 'move') {
+        const targets = getMoveTargets(ctrl.col, ctrl.row);
+        const hit = targets.find(t => t.col === cell.col && t.row === cell.row);
+        if (hit) {
+          doMove(ctrl.col, ctrl.row, cell.col, cell.row);
+          updateHUD(); draw(); return;
+        }
+      }
+      if (state.controlAction === 'spawn') {
+        const targets = getSpawnTargets(ctrl.col, ctrl.row);
+        const hit = targets.find(t => t.col === cell.col && t.row === cell.row);
+        if (hit) {
+          doSpawn(ctrl.col, ctrl.row, cell.col, cell.row);
+          updateHUD(); draw(); return;
+        }
+        return;
+      }
+      resetControl();
+    }
+
+    if (state.placing) {
+      const occupied = state.pieces.has(key(cell.col, cell.row));
+      const t = cellType(cell.col, cell.row);
+      if (!occupied && t !== 'core' && t !== 'beacon') {
+        if (doPlace(state.placing, cell.col, cell.row)) {
+          state.placing = null;
+          updateHUD(); draw();
+          return;
+        }
+        updateHUD(); draw();
+        return;
+      }
+      state.placing = null;
+      state.openCategory = null;
+      updateHUD();
+    }
+
+    const piece = state.pieces.get(key(cell.col, cell.row));
+    if (piece && piece.owner === state.turn) {
+      const def = PIECE_TYPES[piece.type];
+      if (def.actions && def.actions.length > 0) {
+        state.controlled = { col: cell.col, row: cell.row };
+        state.controlAction = def.actions.length === 1 ? def.actions[0] : null;
+        state.openCategory = null;
+        updateHUD(); draw();
+        return;
+      }
+      resetControl();
+      updateHUD(); draw();
+      return;
+    }
+
+    resetControl();
+    state.openCategory = null;
+    updateHUD(); draw();
+  });
+
+  // ==================== 主循环 ====================
+  let lastTime = performance.now();
+  function loop(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.1);
+    lastTime = now;
+
+    const beforeCount = state.arrows.length + state.shells.length;
+    updateArrows(dt);
+    updateShells(dt);
+    updateExplosions(dt);
+    const afterCount = state.arrows.length + state.shells.length;
+    if (beforeCount > 0 && afterCount === 0) updateHUD();
+
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // ==================== Boot ====================
+  initPieces();
+  updateAllStructures();
+  const firstResult = startTurn(1);
+  updateHUD();
+  requestAnimationFrame(loop);
+
+  setTimeout(() => showTurnBanner(1, firstResult.gained, firstResult.extras), 200);
+
+  window.__game = { state, CFG, PIECE_TYPES, CATEGORIES, CORE_FUNCTIONS, BEACONS };
+})();
+</script>
+</body>
+</html>
