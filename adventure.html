@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spartlle · 冒险模式</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Michroma&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #05050d;
+    color: #e2e8f0;
+    font-family: 'Rajdhani', -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    user-select: none;
+  }
+
+  #starfield { position: fixed; inset: 0; display: block; z-index: 0; }
+  .vignette {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.9) 100%);
+    pointer-events: none; z-index: 1;
+  }
+  .grid-overlay {
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(96, 165, 250, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(96, 165, 250, 0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse at center, black 20%, transparent 70%);
+    -webkit-mask-image: radial-gradient(ellipse at center, black 20%, transparent 70%);
+    pointer-events: none; z-index: 1;
+  }
+
+  /* ===== 顶部栏 ===== */
+  .topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px;
+    background: linear-gradient(180deg, rgba(5,5,13,0.95) 0%, rgba(5,5,13,0) 100%);
+    pointer-events: none;
+  }
+  .topbar > * { pointer-events: auto; }
+
+  .back-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 18px;
+    background: rgba(15,23,42,0.85);
+    border: 1px solid rgba(148,163,184,0.22);
+    border-radius: 4px;
+    color: #94a3b8;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px; font-weight: 700;
+    letter-spacing: 0.2em;
+    cursor: pointer;
+    transition: all 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
+    backdrop-filter: blur(6px);
+  }
+  .back-btn:hover {
+    color: #fff;
+    border-color: #60a5fa;
+    box-shadow: 0 0 18px rgba(96,165,250,0.5);
+    transform: translateY(-1px);
+  }
+  .back-btn:active { transform: translateY(0) scale(0.98); }
+
+  .mode-title {
+    font-family: 'Michroma', sans-serif;
+    font-size: 18px;
+    letter-spacing: 0.3em;
+    color: #7dd3fc;
+    text-shadow:
+      0 0 8px rgba(125,211,252,0.9),
+      0 0 24px rgba(56,189,248,0.5);
+  }
+
+  .progress-box {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 16px;
+    background: rgba(15,23,42,0.85);
+    border: 1px solid rgba(148,163,184,0.22);
+    border-radius: 4px;
+    backdrop-filter: blur(6px);
+  }
+  .progress-label { font-size: 11px; color: #64748b; letter-spacing: 0.15em; }
+  .progress-value {
+    font-family: 'Michroma', sans-serif;
+    font-size: 14px; color: #7dd3fc;
+    letter-spacing: 0.1em;
+  }
+
+  /* ===== 星图 ===== */
+  .map-viewport {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    padding-bottom: 90px;
+    padding-top: 70px;
+  }
+  .map-viewport::-webkit-scrollbar { width: 6px; }
+  .map-viewport::-webkit-scrollbar-track { background: transparent; }
+  .map-viewport::-webkit-scrollbar-thumb {
+    background: rgba(96,165,250,0.2);
+    border-radius: 3px;
+  }
+  .map-viewport::-webkit-scrollbar-thumb:hover {
+    background: rgba(96,165,250,0.4);
+  }
+
+  .map-canvas {
+    position: relative;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .connection-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* ===== 关卡节点 ===== */
+  .level-node {
+    position: absolute;
+    transform: translate(-50%, 50%);
+    z-index: 3;
+    cursor: pointer;
+    transition: transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  .level-node.locked {
+    cursor: not-allowed;
+  }
+
+  .node-body {
+    position: relative;
+    width: 56px; height: 56px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #1a2540 0%, #0a0f20 100%);
+    border: 2px solid rgba(148,163,184,0.3);
+    font-family: 'Michroma', sans-serif;
+    font-size: 15px;
+    color: #64748b;
+    transition: all 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
+    box-shadow: 0 0 0 4px rgba(5,5,13,0.6);
+  }
+
+  .level-node:not(.locked):hover .node-body {
+    border-color: #60a5fa;
+    color: #fff;
+    transform: scale(1.1);
+    box-shadow:
+      0 0 0 4px rgba(5,5,13,0.6),
+      0 0 24px rgba(96,165,250,0.7),
+      inset 0 0 20px rgba(96,165,250,0.3);
+  }
+  .level-node:not(.locked):active .node-body {
+    transform: scale(1.0);
+  }
+
+  /* 已通关至少 EASY */
+  .level-node.done-easy .node-body {
+    border-color: #22d3ee;
+    color: #7dd3fc;
+    box-shadow:
+      0 0 0 4px rgba(5,5,13,0.6),
+      0 0 18px rgba(34,211,238,0.5),
+      inset 0 0 16px rgba(34,211,238,0.15);
+  }
+
+  /* 已通关 HARD */
+  .level-node.done-hard .node-body {
+    border-color: #fb923c;
+    color: #fdba74;
+    box-shadow:
+      0 0 0 4px rgba(5,5,13,0.6),
+      0 0 20px rgba(251,146,60,0.6),
+      inset 0 0 16px rgba(251,146,60,0.18);
+  }
+
+  /* 已通关 X MODE */
+  .level-node.done-x .node-body {
+    border-color: #a855f7;
+    color: #d8b4fe;
+    background: radial-gradient(circle at 35% 30%, #3b1d5c 0%, #150a26 100%);
+    box-shadow:
+      0 0 0 4px rgba(5,5,13,0.6),
+      0 0 26px rgba(168,85,247,0.75),
+      inset 0 0 20px rgba(168,85,247,0.35);
+  }
+
+  /* X MODE 通关后的外圈旋转光晕 + X 标记 */
+  .level-node.done-x .node-x-ring {
+    display: block;
+  }
+  .node-x-ring {
+    display: none;
+    position: absolute;
+    inset: -10px;
+    border-radius: 50%;
+    border: 1.5px dashed rgba(168,85,247,0.55);
+    animation: xRingSpin 12s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes xRingSpin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  .node-x-badge {
+    display: none;
+    position: absolute;
+    top: -6px; right: -6px;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #a855f7 0%, #6b21a8 100%);
+    border: 1.5px solid #e9d5ff;
+    color: #fff;
+    font-family: 'Michroma', sans-serif;
+    font-size: 11px; font-weight: 700;
+    align-items: center; justify-content: center;
+    box-shadow: 0 0 12px rgba(168,85,247,0.9);
+    z-index: 4;
+  }
+  .level-node.done-x .node-x-badge {
+    display: flex;
+  }
+
+  /* 已通关 EASY 但未通关 HARD 时，节点下方的小勾 */
+  .node-mini-marks {
+    position: absolute;
+    bottom: -18px;
+    left: 50%; transform: translateX(-50%);
+    display: flex; gap: 4px;
+    pointer-events: none;
+  }
+  .mini-mark {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: rgba(148,163,184,0.2);
+    border: 1px solid rgba(148,163,184,0.35);
+    transition: all 0.25s;
+  }
+  .mini-mark.easy.on {
+    background: #22d3ee;
+    border-color: #7dd3fc;
+    box-shadow: 0 0 6px #22d3ee;
+  }
+  .mini-mark.hard.on {
+    background: #fb923c;
+    border-color: #fdba74;
+    box-shadow: 0 0 6px #fb923c;
+  }
+  .mini-mark.x.on {
+    background: #a855f7;
+    border-color: #d8b4fe;
+    box-shadow: 0 0 6px #a855f7;
+  }
+
+  .node-label {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 8px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: #475569;
+    white-space: nowrap;
+    transition: color 0.25s;
+  }
+  .level-node:not(.locked):hover .node-label {
+    color: #94a3b8;
+  }
+  .level-node.locked .node-body {
+    filter: grayscale(0.7);
+    opacity: 0.4;
+  }
+  .level-node.locked .node-label {
+    opacity: 0.5;
+  }
+
+  /* ===== 章节栏（底部固定） ===== */
+  .chapter-bar {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 14px 24px 18px;
+    background: linear-gradient(0deg, rgba(5,5,13,0.98) 0%, rgba(5,5,13,0.85) 70%, rgba(5,5,13,0) 100%);
+    backdrop-filter: blur(8px);
+  }
+
+  .chapter-label {
+    font-family: 'Michroma', sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.4em;
+    color: #475569;
+    margin-right: 14px;
+    padding-right: 14px;
+    border-right: 1px solid rgba(71,85,105,0.4);
+  }
+
+  .chapter-btn {
+    position: relative;
+    width: 46px; height: 46px;
+    border-radius: 8px;
+    background: rgba(15,23,42,0.85);
+    border: 1px solid rgba(148,163,184,0.22);
+    color: #64748b;
+    font-family: 'Michroma', sans-serif;
+    font-size: 16px; font-weight: 700;
+    cursor: pointer;
+    transition: all 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .chapter-btn:hover:not(.locked):not(.active) {
+    color: #e2e8f0;
+    border-color: #60a5fa;
+    box-shadow: 0 0 14px rgba(96,165,250,0.4);
+    transform: translateY(-2px);
+  }
+  .chapter-btn.active {
+    color: #05050d;
+    background: linear-gradient(180deg, #7dd3fc 0%, #38bdf8 100%);
+    border-color: #bae6fd;
+    box-shadow:
+      0 0 0 1px rgba(186,230,253,0.5),
+      0 0 22px rgba(56,189,248,0.7);
+  }
+  .chapter-btn.locked {
+    opacity: 0.35;
+    cursor: not-allowed;
+    filter: grayscale(0.7);
+  }
+  .chapter-btn .lock-icon {
+    position: absolute;
+    top: -4px; right: -4px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #1e293b;
+    border: 1px solid rgba(71,85,105,0.6);
+    display: none;
+    align-items: center; justify-content: center;
+    font-size: 8px;
+    color: #64748b;
+  }
+  .chapter-btn.locked .lock-icon { display: flex; }
+
+  /* 章节切换时上方浮动标题 */
+  .chapter-float-title {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+    font-family: 'Michroma', sans-serif;
+    font-size: 15px;
+    letter-spacing: 0.5em;
+    color: #7dd3fc;
+    text-shadow:
+      0 0 12px rgba(125,211,252,0.9),
+      0 0 30px rgba(56,189,248,0.5);
+    opacity: 0.9;
+    pointer-events: none;
+    white-space: nowrap;
+    transition: opacity 0.3s;
+  }
+
+  /* ===== 难度选择弹窗 ===== */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: rgba(2, 4, 10, 0.78);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .modal-overlay.show {
+    display: flex;
+    animation: overlayIn 0.24s ease-out;
+  }
+  @keyframes overlayIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  .modal-card {
+    width: 100%;
+    max-width: 460px;
+    padding: 28px;
+    background: linear-gradient(180deg, rgba(15,23,42,0.98) 0%, rgba(8,12,24,0.98) 100%);
+    border: 1px solid rgba(96,165,250,0.35);
+    border-radius: 8px;
+    box-shadow:
+      0 0 0 1px rgba(96,165,250,0.15),
+      0 0 60px rgba(96,165,250,0.3),
+      0 24px 60px rgba(0,0,0,0.7);
+    animation: modalIn 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  @keyframes modalIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .modal-header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding-bottom: 16px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid rgba(42,42,78,0.8);
+  }
+  .modal-level-tag {
+    font-family: 'Michroma', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: #64748b;
+  }
+  .modal-level-name {
+    font-family: 'Michroma', sans-serif;
+    font-size: 22px;
+    color: #7dd3fc;
+    text-shadow: 0 0 14px rgba(125,211,252,0.6);
+  }
+
+  .difficulty-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .diff-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-radius: 6px;
+    background: linear-gradient(180deg, rgba(15,23,42,0.85) 0%, rgba(8,12,24,0.95) 100%);
+    border: 1.5px solid;
+    cursor: pointer;
+    transition: all 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
+    text-align: left;
+    font-family: 'Rajdhani', sans-serif;
+  }
+  .diff-btn:hover {
+    transform: translateY(-2px);
+  }
+  .diff-btn:active {
+    transform: translateY(0) scale(0.99);
+  }
+
+  .diff-easy {
+    border-color: rgba(34,211,238,0.45);
+    color: #7dd3fc;
+  }
+  .diff-easy:hover {
+    border-color: #22d3ee;
+    box-shadow:
+      0 0 0 1px rgba(34,211,238,0.4),
+      0 0 24px rgba(34,211,238,0.4);
+  }
+
+  .diff-hard {
+    border-color: rgba(251,146,60,0.45);
+    color: #fdba74;
+  }
+  .diff-hard:hover {
+    border-color: #fb923c;
+    box-shadow:
+      0 0 0 1px rgba(251,146,60,0.4),
+      0 0 24px rgba(251,146,60,0.4);
+  }
+
+  .diff-x {
+    border-color: rgba(168,85,247,0.5);
+    color: #d8b4fe;
+    background: linear-gradient(180deg, rgba(59,29,92,0.4) 0%, rgba(21,10,38,0.95) 100%);
+  }
+  .diff-x:hover {
+    border-color: #a855f7;
+    box-shadow:
+      0 0 0 1px rgba(168,85,247,0.5),
+      0 0 28px rgba(168,85,247,0.6);
+  }
+
+  .diff-name {
+    font-family: 'Michroma', sans-serif;
+    font-size: 15px;
+    letter-spacing: 0.15em;
+    margin-bottom: 3px;
+  }
+  .diff-sub {
+    font-size: 11px;
+    color: #64748b;
+    letter-spacing: 0.08em;
+    line-height: 1.3;
+  }
+  .diff-x .diff-sub { color: #a78bfa; opacity: 0.8; }
+
+  .diff-status {
+    flex-shrink: 0;
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    border: 1.5px solid rgba(148,163,184,0.3);
+    font-family: 'Michroma', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    transition: all 0.22s;
+  }
+  .diff-easy .diff-status { border-color: rgba(34,211,238,0.5); color: #22d3ee; }
+  .diff-hard .diff-status { border-color: rgba(251,146,60,0.5); color: #fb923c; }
+  .diff-x .diff-status { border-color: rgba(168,85,247,0.5); color: #a855f7; }
+
+  .diff-btn.cleared .diff-status {
+    background: currentColor;
+    color: #05050d !important;
+    border-color: transparent;
+    box-shadow: 0 0 12px currentColor;
+  }
+  .diff-easy.cleared .diff-status { background: #22d3ee; }
+  .diff-hard.cleared .diff-status { background: #fb923c; }
+  .diff-x.cleared .diff-status { background: #a855f7; color: #fff !important; }
+
+  /* 锁定的难度按钮 */
+  .diff-btn.diff-locked {
+    opacity: 0.4;
+    cursor: not-allowed;
+    filter: grayscale(0.6);
+  }
+  .diff-btn.diff-locked:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  .diff-btn.diff-locked .diff-sub {
+    color: #64748b !important;
+    font-style: italic;
+  }
+
+  /* 查看剧情按钮 */
+  .story-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-top: 14px;
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(180deg, rgba(45, 20, 80, 0.5) 0%, rgba(15, 8, 40, 0.9) 100%);
+    border: 1.5px solid rgba(168, 85, 247, 0.55);
+    border-radius: 6px;
+    color: #d8b4fe;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    cursor: pointer;
+    transition: all 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  .story-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 120%, rgba(168, 85, 247, 0.4) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.25s;
+    pointer-events: none;
+  }
+  .story-btn:hover {
+    color: #fff;
+    border-color: #a855f7;
+    transform: translateY(-2px);
+    box-shadow:
+      0 0 0 1px rgba(168, 85, 247, 0.5),
+      0 0 24px rgba(168, 85, 247, 0.5);
+  }
+  .story-btn:hover::before { opacity: 1; }
+  .story-btn:active { transform: translateY(0) scale(0.99); }
+
+  .story-icon { font-size: 16px; }
+
+  .modal-close {
+    margin-top: 20px;
+    width: 100%;
+    padding: 12px;
+    background: rgba(15,23,42,0.85);
+    border: 1px solid rgba(148,163,184,0.25);
+    border-radius: 6px;
+    color: #94a3b8;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .modal-close:hover {
+    color: #fff;
+    border-color: rgba(148,163,184,0.6);
+    background: rgba(20,30,50,0.95);
+  }
+
+  /* ===== Toast ===== */
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 100px;
+    transform: translateX(-50%) translateY(24px);
+    padding: 12px 30px;
+    border-radius: 4px;
+    background: rgba(8, 12, 24, 0.96);
+    border: 1px solid rgba(96, 165, 250, 0.4);
+    color: #e2e8f0;
+    font-size: 14px;
+    letter-spacing: 0.14em;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
+    z-index: 100;
+    backdrop-filter: blur(10px);
+    white-space: nowrap;
+    box-shadow: 0 0 20px rgba(96, 165, 250, 0.25);
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  .toast .highlight { color: #7dd3fc; font-weight: 700; text-shadow: 0 0 10px rgba(125,211,252,0.8); }
+</style>
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+<div class="grid-overlay"></div>
+<div class="vignette"></div>
+
+<!-- 顶部栏 -->
+<div class="topbar">
+  <button class="back-btn" id="backBtn">← 返回</button>
+  <div class="mode-title">ADVENTURE</div>
+  <div class="progress-box">
+    <span class="progress-label">CLEARED</span>
+    <span class="progress-value" id="progressValue">0 / 48</span>
+  </div>
+</div>
+
+<!-- 章节浮动标题 -->
+<div class="chapter-float-title" id="chapterFloatTitle">启航</div>
+
+<!-- 星图可滚动区域 -->
+<div class="map-viewport" id="mapViewport">
+  <div class="map-canvas" id="mapCanvas">
+    <svg class="connection-svg" id="connectionSvg"></svg>
+    <!-- 节点由 JS 动态生成 -->
+  </div>
+</div>
+
+<!-- 章节栏 -->
+<div class="chapter-bar" id="chapterBar">
+  <div class="chapter-label">CHAPTER</div>
+  <!-- 章节按钮由 JS 生成 -->
+</div>
+
+<!-- 难度弹窗 -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span class="modal-level-tag" id="modalLevelTag">LEVEL 01</span>
+      <span class="modal-level-name" id="modalLevelName">第一战</span>
+    </div>
+    <div class="difficulty-list" id="difficultyList">
+      <!-- 难度按钮由 JS 生成 -->
+    </div>
+    <button class="story-btn" id="storyBtn">
+      <span class="story-icon">📖</span> 查看剧情
+    </button>
+    <button class="modal-close" id="modalClose">关闭</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ==================== 常量 ====================
+  const CHAPTER_COUNT = 4;
+  const LEVELS_PER_CHAPTER = 12;
+  const SAVE_KEY = 'spartlle_adventure_v1';
+
+  // 章节信息
+  const CHAPTERS = [
+    { id: 1, name: '启航', subtitle: '' },
+    { id: 2, name: '第二章', subtitle: '' },
+    { id: 3, name: '第三章', subtitle: '' },
+    { id: 4, name: '第四章', subtitle: '' },
+  ];
+
+  // 关卡名（占位，以后再定）
+  function getLevelName(chapter, level) {
+    return `LV.${String(level).padStart(2, '0')}`;
+  }
+
+  // 12 个关卡节点的横向位置（百分比），形成"星座攀升"曲线
+  const NODE_LAYOUT = [
+    { x: 50 },  // 1
+    { x: 66 },  // 2
+    { x: 74 },  // 3
+    { x: 58 },  // 4
+    { x: 38 },  // 5
+    { x: 26 },  // 6
+    { x: 36 },  // 7
+    { x: 54 },  // 8
+    { x: 70 },  // 9
+    { x: 56 },  // 10
+    { x: 38 },  // 11
+    { x: 50 },  // 12（登顶，居中）
+  ];
+
+  const ROW_SPACING = 118;
+  const BOTTOM_PADDING = 60;
+  const TOP_PADDING = 80;
+
+  // ==================== 存档 ====================
+  function loadSave() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return { version: 1, progress: {} };
+      const data = JSON.parse(raw);
+      if (data.version !== 1) return { version: 1, progress: {} };
+      if (!data.progress) data.progress = {};
+      return data;
+    } catch (e) {
+      console.warn('存档损坏，已重置', e);
+      return { version: 1, progress: {} };
+    }
+  }
+  function persistSave() {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+  }
+
+  let save = loadSave();
+
+  const lvKey = (ch, lv) => `c${ch}-l${lv}`;
+
+  function getProgress(ch, lv) {
+    return save.progress[lvKey(ch, lv)] || { easy: false, hard: false, x: false };
+  }
+
+  // 至少 EASY 通关
+  function isLevelUnlocked(ch, lv) {
+    if (ch === 1 && lv === 1) return true;
+    if (lv > 1) {
+      return getProgress(ch, lv - 1).easy;
+    }
+    if (lv === 1 && ch > 1) {
+      return getProgress(ch - 1, LEVELS_PER_CHAPTER).easy;
+    }
+    return false;
+  }
+
+  function isChapterUnlocked(ch) {
+    if (ch === 1) return true;
+    return getProgress(ch - 1, LEVELS_PER_CHAPTER).easy;
+  }
+
+  function countChapterCleared(ch) {
+    let n = 0;
+    for (let lv = 1; lv <= LEVELS_PER_CHAPTER; lv++) {
+      if (getProgress(ch, lv).easy) n++;
+    }
+    return n;
+  }
+
+  // ==================== 星空背景 ====================
+  const starCanvas = document.getElementById('starfield');
+  const starCtx = starCanvas.getContext('2d');
+  let W = 0, H = 0, DPR = 1;
+
+  function resizeStars() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    starCanvas.width = W * DPR;
+    starCanvas.height = H * DPR;
+    starCanvas.style.width = W + 'px';
+    starCanvas.style.height = H + 'px';
+    starCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+
+  const stars = [];
+  const NUM_STARS = 200;
+
+  function initStars() {
+    stars.length = 0;
+    for (let i = 0; i < NUM_STARS; i++) {
+      const layer = Math.random() < 0.5 ? 0 : Math.random() < 0.7 ? 1 : 2;
+      const size =
+        layer === 0 ? 0.3 + Math.random() * 0.5 :
+        layer === 1 ? 0.6 + Math.random() * 0.9 :
+                      1.2 + Math.random() * 1.5;
+      const speed =
+        layer === 0 ? 5 + Math.random() * 6 :
+        layer === 1 ? 12 + Math.random() * 10 :
+                      22 + Math.random() * 16;
+      stars.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: size,
+        vy: speed,
+        vx: speed * 0.08 * (Math.random() < 0.5 ? -1 : 1),
+        twinkle: Math.random() * Math.PI * 2,
+        twinkleSpeed: 0.015 + Math.random() * 0.04,
+        baseAlpha: 0.4 + Math.random() * 0.5,
+      });
+    }
+  }
+
+  let lastTime = performance.now();
+  function drawStars(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.1);
+    lastTime = now;
+
+    const bg = starCtx.createRadialGradient(
+      W * 0.5, H * 0.4, 0,
+      W * 0.5, H * 0.4, Math.max(W, H) * 0.85
+    );
+    bg.addColorStop(0, '#0a0a1f');
+    bg.addColorStop(0.5, '#070712');
+    bg.addColorStop(1, '#030308');
+    starCtx.fillStyle = bg;
+    starCtx.fillRect(0, 0, W, H);
+
+    for (const s of stars) {
+      s.twinkle += s.twinkleSpeed * 60 * dt;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      if (s.y > H + 5) { s.y = -5; s.x = Math.random() * W; }
+      if (s.x > W + 5) s.x = -5;
+      if (s.x < -5) s.x = W + 5;
+
+      const alpha = s.baseAlpha * (0.75 + 0.25 * Math.sin(s.twinkle));
+      starCtx.globalAlpha = alpha;
+      starCtx.fillStyle = '#ffffff';
+      starCtx.beginPath();
+      starCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      starCtx.fill();
+    }
+    starCtx.globalAlpha = 1;
+    requestAnimationFrame(drawStars);
+  }
+
+  // ==================== 状态 ====================
+  const state = {
+    chapter: 1,
+    modalChapter: 1,
+    modalLevel: 1,
+  };
+
+  const mapViewport = document.getElementById('mapViewport');
+  const mapCanvas = document.getElementById('mapCanvas');
+  const connectionSvg = document.getElementById('connectionSvg');
+  const chapterBar = document.getElementById('chapterBar');
+  const chapterFloatTitle = document.getElementById('chapterFloatTitle');
+  const progressValue = document.getElementById('progressValue');
+  const modalOverlay = document.getElementById('modalOverlay');
+  const modalLevelTag = document.getElementById('modalLevelTag');
+  const modalLevelName = document.getElementById('modalLevelName');
+  const difficultyList = document.getElementById('difficultyList');
+  const modalClose = document.getElementById('modalClose');
+  const toast = document.getElementById('toast');
+
+  let toastTimer = null;
+  function showToast(html) {
+    toast.innerHTML = html;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
+  }
+
+  // ==================== 渲染星图 ====================
+  function renderChapter(ch) {
+    state.chapter = ch;
+
+    const mapHeight = TOP_PADDING + BOTTOM_PADDING + (LEVELS_PER_CHAPTER - 1) * ROW_SPACING;
+    mapCanvas.style.height = mapHeight + 'px';
+    connectionSvg.setAttribute('viewBox', `0 0 ${mapCanvas.clientWidth || 1000} ${mapHeight}`);
+    connectionSvg.style.height = mapHeight + 'px';
+
+    [...mapCanvas.querySelectorAll('.level-node')].forEach(n => n.remove());
+
+    const nodePositions = [];
+    const containerWidth = mapCanvas.clientWidth || 1000;
+
+    for (let lv = 1; lv <= LEVELS_PER_CHAPTER; lv++) {
+      const idx = lv - 1;
+      const layout = NODE_LAYOUT[idx];
+      const progress = getProgress(ch, lv);
+      const unlocked = isLevelUnlocked(ch, lv);
+
+      const bottomPx = BOTTOM_PADDING + idx * ROW_SPACING;
+
+      const node = document.createElement('div');
+      node.className = 'level-node';
+      if (!unlocked) node.classList.add('locked');
+      if (progress.easy) node.classList.add('done-easy');
+      if (progress.hard) node.classList.add('done-hard');
+      if (progress.x)    node.classList.add('done-x');
+
+      node.style.left = layout.x + '%';
+      node.style.bottom = bottomPx + 'px';
+
+      node.innerHTML = `
+        <div class="node-x-ring"></div>
+        <div class="node-body">${lv}</div>
+        <div class="node-x-badge">✕</div>
+        <div class="node-mini-marks">
+          <span class="mini-mark easy ${progress.easy ? 'on' : ''}"></span>
+          <span class="mini-mark hard ${progress.hard ? 'on' : ''}"></span>
+          <span class="mini-mark x ${progress.x ? 'on' : ''}"></span>
+        </div>
+        <div class="node-label">LEVEL ${String(lv).padStart(2, '0')}</div>
+      `;
+
+      node.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!unlocked) {
+          showToast('<span class="highlight">未解锁</span> · 请先通关上一关');
+          return;
+        }
+        openLevelModal(ch, lv);
+      });
+
+      mapCanvas.appendChild(node);
+
+      nodePositions.push({
+        cx: (layout.x / 100) * containerWidth,
+        cy: mapHeight - bottomPx,
+      });
+    }
+
+    renderConnections(nodePositions, ch);
+
+    requestAnimationFrame(() => {
+      mapViewport.scrollTop = mapViewport.scrollHeight;
+    });
+  }
+
+  function renderConnections(positions, ch) {
+    while (connectionSvg.firstChild) connectionSvg.removeChild(connectionSvg.firstChild);
+
+    const ns = 'http://www.w3.org/2000/svg';
+    for (let i = 0; i < positions.length - 1; i++) {
+      const a = positions[i];
+      const b = positions[i + 1];
+
+      const lv = i + 1;
+      const clearedA = getProgress(ch, lv).easy;
+      const clearedB = getProgress(ch, lv + 1).easy;
+
+      let stroke, width, opacity, dash;
+      if (clearedA && clearedB) {
+        stroke = '#22d3ee';
+        width = 2;
+        opacity = 0.7;
+        dash = '0';
+      } else if (clearedA) {
+        stroke = '#60a5fa';
+        width = 1.6;
+        opacity = 0.5;
+        dash = '6 6';
+      } else {
+        stroke = '#475569';
+        width = 1.2;
+        opacity = 0.28;
+        dash = '3 6';
+      }
+
+      if (clearedA && clearedB) {
+        const glow = document.createElementNS(ns, 'line');
+        glow.setAttribute('x1', a.cx);
+        glow.setAttribute('y1', a.cy);
+        glow.setAttribute('x2', b.cx);
+        glow.setAttribute('y2', b.cy);
+        glow.setAttribute('stroke', '#22d3ee');
+        glow.setAttribute('stroke-width', 5);
+        glow.setAttribute('stroke-opacity', 0.18);
+        glow.setAttribute('stroke-linecap', 'round');
+        connectionSvg.appendChild(glow);
+      }
+
+      const line = document.createElementNS(ns, 'line');
+      line.setAttribute('x1', a.cx);
+      line.setAttribute('y1', a.cy);
+      line.setAttribute('x2', b.cx);
+      line.setAttribute('y2', b.cy);
+      line.setAttribute('stroke', stroke);
+      line.setAttribute('stroke-width', width);
+      line.setAttribute('stroke-opacity', opacity);
+      line.setAttribute('stroke-linecap', 'round');
+      if (dash !== '0') line.setAttribute('stroke-dasharray', dash);
+      connectionSvg.appendChild(line);
+    }
+  }
+
+  // ==================== 渲染章节栏 ====================
+  function renderChapterBar() {
+    [...chapterBar.querySelectorAll('.chapter-btn')].forEach(b => b.remove());
+
+    for (const ch of CHAPTERS) {
+      const unlocked = isChapterUnlocked(ch.id);
+      const active = state.chapter === ch.id;
+
+      const btn = document.createElement('button');
+      btn.className = 'chapter-btn';
+      if (active) btn.classList.add('active');
+      if (!unlocked) btn.classList.add('locked');
+      btn.textContent = ch.id;
+      btn.innerHTML += `<span class="lock-icon">🔒</span>`;
+
+      btn.addEventListener('click', () => {
+        if (!unlocked) {
+          showToast('<span class="highlight">章节未解锁</span> · 请先通关上一章');
+          return;
+        }
+        if (state.chapter === ch.id) return;
+        switchChapter(ch.id);
+      });
+
+      chapterBar.appendChild(btn);
+    }
+  }
+
+  function switchChapter(ch) {
+    state.chapter = ch;
+    chapterFloatTitle.textContent = CHAPTERS[ch - 1].name;
+
+    chapterFloatTitle.style.opacity = '0';
+    setTimeout(() => {
+      renderChapter(ch);
+      renderChapterBar();
+      chapterFloatTitle.style.opacity = '0.9';
+    }, 180);
+  }
+
+  // ==================== 进度 ====================
+  function updateProgress() {
+    let totalCleared = 0;
+    for (let ch = 1; ch <= CHAPTER_COUNT; ch++) {
+      for (let lv = 1; lv <= LEVELS_PER_CHAPTER; lv++) {
+        if (getProgress(ch, lv).easy) totalCleared++;
+      }
+    }
+    const total = CHAPTER_COUNT * LEVELS_PER_CHAPTER;
+    progressValue.textContent = `${totalCleared} / ${total}`;
+  }
+
+  // ==================== 难度弹窗 ====================
+  function openLevelModal(ch, lv) {
+    state.modalChapter = ch;
+    state.modalLevel = lv;
+
+    modalLevelTag.textContent = `${CHAPTERS[ch - 1].name} · LEVEL ${String(lv).padStart(2, '0')}`;
+    modalLevelName.textContent = getLevelName(ch, lv);
+
+    renderDifficultyList();
+    modalOverlay.classList.add('show');
+  }
+
+  function closeLevelModal() {
+    modalOverlay.classList.remove('show');
+  }
+
+  function renderDifficultyList() {
+    difficultyList.innerHTML = '';
+    const ch = state.modalChapter;
+    const lv = state.modalLevel;
+    const progress = getProgress(ch, lv);
+
+    const DIFFS = [
+      {
+        key: 'easy',
+        cls: 'diff-easy',
+        name: 'EASY',
+        sub: '标准难度 · 熟悉关卡机制',
+        mark: '✓',
+        unlocked: true,
+        lockedTip: '',
+      },
+      {
+        key: 'hard',
+        cls: 'diff-hard',
+        name: 'HARD',
+        sub: '敌人更多 · 资源更紧',
+        mark: '✓',
+        unlocked: progress.easy,
+        lockedTip: '需先通关 EASY',
+      },
+      {
+        key: 'x',
+        cls: 'diff-x',
+        name: 'X MODE',
+        sub: '极限挑战 · 通关解锁 X 标志',
+        mark: '✕',
+        unlocked: progress.hard,
+        lockedTip: '需先通关 HARD',
+      },
+    ];
+
+    for (const d of DIFFS) {
+      const cleared = progress[d.key];
+      const locked = !d.unlocked;
+
+      const btn = document.createElement('button');
+      btn.className = `diff-btn ${d.cls}`;
+      if (cleared) btn.classList.add('cleared');
+      if (locked) btn.classList.add('diff-locked');
+
+      const subText = locked ? d.lockedTip : d.sub;
+
+      let statusContent = '';
+      if (cleared) statusContent = d.mark;
+      else if (locked) statusContent = '🔒';
+
+      btn.innerHTML = `
+        <div>
+          <div class="diff-name">${d.name}</div>
+          <div class="diff-sub">${subText}</div>
+        </div>
+        <div class="diff-status">${statusContent}</div>
+      `;
+
+      btn.addEventListener('click', () => {
+        if (locked) {
+          showToast(`<span class="highlight">${d.lockedTip}</span>`);
+          return;
+        }
+        enterLevel(ch, lv, d.key);
+      });
+
+      difficultyList.appendChild(btn);
+    }
+  }
+
+  // ==================== 进入关卡 ====================
+  function enterLevel(ch, lv, difficulty) {
+    // 防御性检查：难度是否已解锁
+    const progress = getProgress(ch, lv);
+    if (difficulty === 'hard' && !progress.easy) {
+      showToast('<span class="highlight">需先通关 EASY</span>');
+      return;
+    }
+    if (difficulty === 'x' && !progress.hard) {
+      showToast('<span class="highlight">需先通关 HARD</span>');
+      return;
+    }
+
+    // 目前只有第一章第一关的 EASY 模式做好了
+    if (ch === 1 && lv === 1 && difficulty === 'easy') {
+      window.location.href = `1-1.html?c=${ch}&l=${lv}&d=${difficulty}`;
+    } else {
+      showToast('<span class="highlight">关卡开发中</span> · 敬请期待');
+    }
+  }
+
+  // ==================== 事件绑定 ====================
+  document.getElementById('backBtn').addEventListener('click', () => {
+    window.location.href = 'index.html';
+  });
+
+  // 查看剧情按钮
+  document.getElementById('storyBtn').addEventListener('click', () => {
+    const ch = state.modalChapter;
+    const lv = state.modalLevel;
+    window.location.href = `story.html?c=${ch}&l=${lv}`;
+  });
+
+  modalClose.addEventListener('click', closeLevelModal);
+  modalOverlay.addEventListener('click', (e) => {
+    if (e.target === modalOverlay) closeLevelModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeLevelModal();
+  });
+
+  // 窗口尺寸变化：重绘（连接线依赖容器宽度）
+  let resizeRaf = null;
+  window.addEventListener('resize', () => {
+    resizeStars();
+    initStars();
+    if (resizeRaf) cancelAnimationFrame(resizeRaf);
+    resizeRaf = requestAnimationFrame(() => {
+      renderChapter(state.chapter);
+    });
+  });
+
+  // ==================== 启动 ====================
+  resizeStars();
+  initStars();
+  requestAnimationFrame(drawStars);
+
+  chapterFloatTitle.textContent = CHAPTERS[0].name;
+  renderChapter(1);
+  renderChapterBar();
+  updateProgress();
+
+  // ==================== 调试接口 ====================
+  window.__adventure = {
+    get save() { return save; },
+    set save(v) { save = v; },
+    get state() { return state; },
+    getProgress,
+    isLevelUnlocked,
+    isChapterUnlocked,
+    countChapterCleared,
+    CHAPTERS,
+    LEVELS_PER_CHAPTER,
+    resetProgress() {
+      save = { version: 1, progress: {} };
+      persistSave();
+      renderChapter(state.chapter);
+      renderChapterBar();
+      updateProgress();
+      showToast('<span class="highlight">进度已重置</span>');
+    },
+    completeLevel(ch, lv, diff = 'easy') {
+      const key = lvKey(ch, lv);
+      const prog = getProgress(ch, lv);
+      save.progress[key] = { ...prog, [diff]: true };
+      persistSave();
+      renderChapter(state.chapter);
+      renderChapterBar();
+      updateProgress();
+      showToast(`<span class="highlight">${ch}-${lv} ${diff}</span> 已标记通关`);
+    },
+    unlockAllChapters() {
+      for (let ch = 1; ch <= CHAPTER_COUNT; ch++) {
+        for (let lv = 1; lv <= LEVELS_PER_CHAPTER; lv++) {
+          const key = lvKey(ch, lv);
+          save.progress[key] = { easy: true, hard: false, x: false };
+        }
+      }
+      persistSave();
+      renderChapter(state.chapter);
+      renderChapterBar();
+      updateProgress();
+      showToast('<span class="highlight">已解锁所有章节</span>');
+    },
+  };
+})();
+</script>
+</body>
+</html>

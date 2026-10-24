@@ -1,0 +1,2141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spartlle · 第一章 LEVEL 01</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Michroma&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #05050d;
+    color: #e2e8f0;
+    font-family: 'Rajdhani', -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    user-select: none;
+  }
+
+  #starfield { position: fixed; inset: 0; display: block; z-index: 0; }
+  .vignette {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.9) 100%);
+    pointer-events: none; z-index: 1;
+  }
+
+  /* ===== 顶部栏 ===== */
+  .topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px;
+    background: linear-gradient(180deg, rgba(5,5,13,0.95) 0%, rgba(5,5,13,0) 100%);
+    pointer-events: none;
+  }
+  .topbar > * { pointer-events: auto; }
+
+  .back-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px;
+    background: rgba(15,23,42,0.85);
+    border: 1px solid rgba(148,163,184,0.22);
+    border-radius: 4px;
+    color: #94a3b8;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.2em;
+    cursor: pointer;
+    transition: all 0.22s;
+    backdrop-filter: blur(6px);
+  }
+  .back-btn:hover {
+    color: #fff;
+    border-color: #60a5fa;
+    box-shadow: 0 0 16px rgba(96,165,250,0.5);
+  }
+
+  .hud-stats {
+    display: flex; gap: 10px; align-items: center;
+  }
+
+  .stat-box {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 12px;
+    background: rgba(15,23,42,0.85);
+    border: 1px solid rgba(148,163,184,0.22);
+    border-radius: 4px;
+    backdrop-filter: blur(6px);
+    font-family: 'Rajdhani', sans-serif;
+  }
+  .stat-label {
+    font-size: 10px;
+    color: #64748b;
+    letter-spacing: 0.2em;
+    font-weight: 700;
+  }
+  .stat-value {
+    font-family: 'Michroma', sans-serif;
+    font-size: 13px;
+    color: #7dd3fc;
+    letter-spacing: 0.05em;
+  }
+  .stat-box.meteor .stat-value { color: #fbbf24; }
+  .stat-box.meteor .stat-icon { color: #fbbf24; }
+  .stat-box.wave .stat-value { color: #f87171; }
+
+  .stat-icon {
+    width: 12px; height: 12px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .stat-icon svg { width: 100%; height: 100%; display: block; }
+
+  .phase-tag {
+    padding: 5px 14px;
+    border-radius: 4px;
+    font-family: 'Michroma', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    border: 1px solid;
+    transition: all 0.3s;
+  }
+  .phase-tag.prepare {
+    color: #22d3ee;
+    border-color: rgba(34,211,238,0.5);
+    background: rgba(34,211,238,0.08);
+  }
+  .phase-tag.battle {
+    color: #f87171;
+    border-color: rgba(248,113,113,0.5);
+    background: rgba(248,113,113,0.08);
+    animation: phasePulse 1.5s ease-in-out infinite;
+  }
+  @keyframes phasePulse {
+    0%, 100% { box-shadow: 0 0 0 rgba(248,113,113,0); }
+    50%      { box-shadow: 0 0 16px rgba(248,113,113,0.5); }
+  }
+
+  /* ===== 主舞台 ===== */
+  .stage {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+    padding: 70px 20px 130px;
+    pointer-events: none;
+  }
+  .stage > * { pointer-events: auto; }
+
+  #board {
+    display: block;
+    border-radius: 10px;
+    box-shadow:
+      0 0 0 1px rgba(96,165,250,0.2),
+      0 0 60px rgba(96,165,250,0.15),
+      0 0 120px rgba(0,0,0,0.8);
+    cursor: pointer;
+    max-width: 100%;
+    max-height: 100%;
+  }
+
+  /* ===== 底部面板 ===== */
+  .bottom-panel {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 16px 20px 20px;
+    background: linear-gradient(0deg, rgba(5,5,13,0.98) 0%, rgba(5,5,13,0.7) 70%, rgba(5,5,13,0) 100%);
+    backdrop-filter: blur(4px);
+    min-height: 80px;
+  }
+
+  .piece-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: linear-gradient(180deg, rgba(15,23,42,0.85) 0%, rgba(8,12,24,0.95) 100%);
+    border: 1.5px solid rgba(148,163,184,0.3);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
+    min-width: 120px;
+  }
+  .piece-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    border-color: #60a5fa;
+    box-shadow:
+      0 0 0 1px rgba(96,165,250,0.3),
+      0 0 20px rgba(96,165,250,0.4);
+  }
+  .piece-btn.active {
+    border-color: #fbbf24;
+    background: linear-gradient(180deg, rgba(120,53,15,0.4) 0%, rgba(60,25,10,0.95) 100%);
+    box-shadow:
+      0 0 0 1px rgba(251,191,36,0.4),
+      0 0 20px rgba(251,191,36,0.5);
+    transform: translateY(-2px);
+  }
+  .piece-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    filter: grayscale(0.5);
+  }
+
+  .piece-btn canvas {
+    width: 44px; height: 44px;
+    flex-shrink: 0;
+  }
+
+  .piece-info {
+    display: flex; flex-direction: column;
+    gap: 2px;
+    text-align: left;
+  }
+
+  .piece-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #e2e8f0;
+    letter-spacing: 0.05em;
+  }
+  .piece-cost {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 12px;
+    color: #fbbf24;
+    font-weight: 700;
+  }
+  .piece-cost::before {
+    content: '◆';
+    font-size: 9px;
+  }
+
+  .skip-btn {
+    padding: 12px 24px;
+    background: rgba(15,23,42,0.85);
+    border: 1.5px solid rgba(148,163,184,0.3);
+    border-radius: 8px;
+    color: #94a3b8;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    cursor: pointer;
+    transition: all 0.2s;
+    backdrop-filter: blur(6px);
+  }
+  .skip-btn:hover {
+    color: #fff;
+    border-color: #60a5fa;
+    box-shadow: 0 0 16px rgba(96,165,250,0.4);
+  }
+  .skip-btn:active { transform: scale(0.98); }
+  .skip-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* ===== 操作面板（选中棋子后浮现） ===== */
+  .action-panel {
+    position: fixed;
+    bottom: 110px;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    z-index: 15;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(10, 15, 30, 0.95);
+    border: 1.5px solid rgba(96,165,250,0.4);
+    border-radius: 8px;
+    box-shadow:
+      0 0 0 1px rgba(96,165,250,0.1),
+      0 10px 30px rgba(0,0,0,0.6);
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    transition: all 0.25s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  .action-panel.show {
+    display: flex;
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .action-panel-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: #e2e8f0;
+    padding: 0 8px 0 4px;
+    border-right: 1px solid rgba(148,163,184,0.3);
+    margin-right: 4px;
+  }
+
+  .action-btn {
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+    background: rgba(15,23,42,0.8);
+    color: #cbd5e1;
+  }
+  .action-btn:hover {
+    background: rgba(30,41,59,0.9);
+    color: #fff;
+  }
+  .action-btn.active {
+    border-color: #fbbf24;
+    color: #fde68a;
+    box-shadow: 0 0 12px rgba(251,191,36,0.3);
+  }
+  .action-btn.btn-attack.active {
+    border-color: #ef4444;
+    color: #fca5a5;
+    box-shadow: 0 0 12px rgba(239,68,68,0.4);
+    background: rgba(239,68,68,0.1);
+  }
+  .action-btn.btn-move.active {
+    border-color: #22c55e;
+    color: #86efac;
+    box-shadow: 0 0 12px rgba(34,197,94,0.4);
+    background: rgba(34,197,94,0.1);
+  }
+  .action-btn.btn-shoot.active {
+    border-color: #22d3ee;
+    color: #67e8f9;
+    box-shadow: 0 0 12px rgba(34,211,238,0.4);
+    background: rgba(34,211,238,0.1);
+  }
+  .action-btn.btn-cancel {
+    border-color: rgba(148,163,184,0.3);
+    color: #94a3b8;
+  }
+  .action-btn.btn-cancel:hover {
+    border-color: #ef4444;
+    color: #fca5a5;
+  }
+
+  /* ===== 提示栏 ===== */
+  .hint {
+    position: fixed;
+    bottom: 92px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9;
+    font-size: 12px;
+    color: #94a3b8;
+    letter-spacing: 0.15em;
+    text-align: center;
+    pointer-events: none;
+    text-shadow: 0 0 8px rgba(0,0,0,0.9);
+    white-space: nowrap;
+    padding: 6px 16px;
+    border-radius: 4px;
+    background: rgba(5,5,13,0.7);
+    backdrop-filter: blur(4px);
+    max-width: 90vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: opacity 0.3s, transform 0.3s;
+  }
+  .hint.hidden {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+
+  /* ===== 结束遮罩 ===== */
+  .gameover-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(2, 4, 10, 0.85);
+    backdrop-filter: blur(10px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .gameover-overlay.show {
+    display: flex;
+    animation: overlayIn 0.5s ease-out;
+  }
+  @keyframes overlayIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  .gameover-card {
+    text-align: center;
+    padding: 40px 50px;
+    background: linear-gradient(180deg, rgba(15,23,42,0.98) 0%, rgba(8,12,24,0.98) 100%);
+    border: 1.5px solid;
+    border-radius: 12px;
+    max-width: 480px;
+    animation: cardIn 0.6s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.95); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .gameover-card.win {
+    border-color: rgba(34,211,238,0.6);
+    box-shadow: 0 0 60px rgba(34,211,238,0.4);
+  }
+  .gameover-card.lose {
+    border-color: rgba(239,68,68,0.6);
+    box-shadow: 0 0 60px rgba(239,68,68,0.4);
+  }
+
+  .gameover-title {
+    font-family: 'Michroma', sans-serif;
+    font-size: 32px;
+    letter-spacing: 0.3em;
+    margin-bottom: 12px;
+  }
+  .gameover-card.win .gameover-title {
+    color: #22d3ee;
+    text-shadow: 0 0 20px rgba(34,211,238,0.8);
+  }
+  .gameover-card.lose .gameover-title {
+    color: #f87171;
+    text-shadow: 0 0 20px rgba(248,113,113,0.8);
+  }
+
+  .gameover-sub {
+    font-size: 14px;
+    color: #94a3b8;
+    margin-bottom: 28px;
+    letter-spacing: 0.1em;
+  }
+
+  .gameover-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+  }
+
+  .gameover-btn {
+    padding: 12px 30px;
+    border-radius: 6px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1.5px solid;
+    background: transparent;
+  }
+  .gameover-btn.primary {
+    color: #0a0a1a;
+    background: #22d3ee;
+    border-color: #22d3ee;
+  }
+  .gameover-btn.primary:hover {
+    background: #67e8f9;
+    border-color: #67e8f9;
+    box-shadow: 0 0 20px rgba(34,211,238,0.6);
+  }
+  .gameover-btn.secondary {
+    color: #94a3b8;
+    border-color: rgba(148,163,184,0.4);
+  }
+  .gameover-btn.secondary:hover {
+    color: #fff;
+    border-color: rgba(148,163,184,0.8);
+  }
+</style>
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+<div class="vignette"></div>
+
+<!-- 顶部栏 -->
+<div class="topbar">
+  <button class="back-btn" id="backBtn">← 返回</button>
+  <div class="hud-stats">
+    <div class="stat-box">
+      <span class="stat-label">TURN</span>
+      <span class="stat-value" id="hudTurn">1</span>
+    </div>
+    <div class="stat-box meteor">
+      <span class="stat-icon">
+        <svg viewBox="0 0 16 16"><path d="M8 1 L15 8 L8 15 L1 8 Z" fill="currentColor"/></svg>
+      </span>
+      <span class="stat-value" id="hudMeteor">5</span>
+    </div>
+    <div class="stat-box wave">
+      <span class="stat-label">WAVE</span>
+      <span class="stat-value" id="hudWave">0 / 5</span>
+    </div>
+    <div class="phase-tag prepare" id="hudPhase">准备</div>
+  </div>
+</div>
+
+<!-- 舞台 -->
+<div class="stage">
+  <canvas id="board"></canvas>
+</div>
+
+<!-- 提示栏 -->
+<div class="hint" id="hint">点击下方棋子进行放置，或点击己方棋子操作</div>
+
+<!-- 操作面板（选中棋子后弹出） -->
+<div class="action-panel" id="actionPanel">
+  <div class="action-panel-title" id="actionPanelTitle">棋子</div>
+  <div id="actionButtons"></div>
+</div>
+
+<!-- 底部面板 -->
+<div class="bottom-panel">
+  <button class="piece-btn" data-piece="star" id="pieceStar">
+    <canvas width="88" height="88"></canvas>
+    <div class="piece-info">
+      <div class="piece-name">星</div>
+      <div class="piece-cost">2</div>
+    </div>
+  </button>
+  <button class="piece-btn" data-piece="archer" id="pieceArcher">
+    <canvas width="88" height="88"></canvas>
+    <div class="piece-info">
+      <div class="piece-name">弓箭</div>
+      <div class="piece-cost">12</div>
+    </div>
+  </button>
+  <button class="piece-btn" data-piece="warrior" id="pieceWarrior">
+    <canvas width="88" height="88"></canvas>
+    <div class="piece-info">
+      <div class="piece-name">勇士</div>
+      <div class="piece-cost">16</div>
+    </div>
+  </button>
+  <button class="skip-btn" id="skipBtn">跳过回合</button>
+</div>
+
+<!-- 结束遮罩 -->
+<div class="gameover-overlay" id="gameoverOverlay">
+  <div class="gameover-card" id="gameoverCard">
+    <div class="gameover-title" id="gameoverTitle">VICTORY</div>
+    <div class="gameover-sub" id="gameoverSub">所有敌人已被歼灭</div>
+    <div class="gameover-actions">
+      <button class="gameover-btn primary" id="gameoverBackBtn">返回关卡</button>
+      <button class="gameover-btn secondary" id="gameoverRetryBtn">再次挑战</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ==================== 常量 ====================
+  const CFG = {
+    N: 7,
+    CELL: 80,
+    DPR: Math.min(window.devicePixelRatio || 1, 2),
+
+    SPAWN_TURN_START: 7,
+    SPAWN_INTERVAL: 3,
+    MONSTER_MOVE_INTERVAL: 2,
+    TOTAL_WAVES: 5,
+    WAVE_SIZES: [2, 2, 2, 2, 3],
+
+    MONSTER_HP: 3,
+    MONSTER_ATK: 1,
+    BASE_HP: 1,
+    FORT_HP: 3,
+    START_METEORS: 5,
+  };
+
+  const PIECES = {
+    star:    { name: '星',    cost: 2,  maxHp: 1, kind: 'producer', produce: 2 },
+    archer:  { name: '弓箭',  cost: 12, maxHp: 2, kind: 'shooter' },
+    warrior: { name: '勇士',  cost: 16, maxHp: 2, kind: 'melee', attackDamage: 2, moveRange: 3 },
+  };
+
+  // ==================== 地图布局 ====================
+  const BASE_POS = { col: 0, row: 0 };
+  const FORTS = [
+    { col: 1, row: 0 },
+    { col: 0, row: 1 },
+    { col: 1, row: 1 },
+  ];
+  const SPAWNER_POS = { col: 6, row: 6 };
+  const SPAWN_CELLS = [
+    { col: 5, row: 6 },
+    { col: 6, row: 5 },
+    { col: 5, row: 5 },
+  ];
+
+  const DIRS8 = [
+    { dc: 1, dr: 0 }, { dc: -1, dr: 0 },
+    { dc: 0, dr: 1 }, { dc: 0, dr: -1 },
+    { dc: 1, dr: 1 }, { dc: 1, dr: -1 },
+    { dc: -1, dr: 1 }, { dc: -1, dr: -1 },
+  ];
+  const DIRS4 = [
+    { dc: 1, dr: 0 }, { dc: -1, dr: 0 },
+    { dc: 0, dr: 1 }, { dc: 0, dr: -1 },
+  ];
+
+  // ==================== 颜色 ====================
+  const C = {
+    empty:     '#0f0f1a',
+    grid:      '#1e1e30',
+    base:      '#101c3d',
+    fort:      '#0f1830',
+    spawner:   '#1a0511',
+    spawnCell: '#150612',
+    p1:        '#3b82f6',
+    p1d:       '#1e40af',
+    p1l:       '#93c5fd',
+    monster:   '#7f1d1d',
+    monsterD:  '#450a0a',
+    monsterL:  '#f87171',
+    hover:     '#ffffff',
+    select:    '#fbbf24',
+    valid:     '#22c55e',
+    aim:       '#22d3ee',
+    aimEmpty:  '#64748b',
+    attack:    '#ef4444',
+    move:      '#22c55e',
+  };
+
+  // ==================== 坐标工具 ====================
+  function cellRect(col, row) {
+    return {
+      x: col * CFG.CELL,
+      y: (CFG.N - 1 - row) * CFG.CELL,
+      w: CFG.CELL,
+      h: CFG.CELL,
+    };
+  }
+  function cellCenter(col, row) {
+    const r = cellRect(col, row);
+    return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+  }
+
+  function pixelToCell(px, py, rectWidth, rectHeight) {
+    const scaleX = SIZE / rectWidth;
+    const scaleY = SIZE / rectHeight;
+    const logicalX = px * scaleX;
+    const logicalY = py * scaleY;
+
+    const col = Math.floor(logicalX / CFG.CELL);
+    const row = CFG.N - 1 - Math.floor(logicalY / CFG.CELL);
+    if (col < 0 || col >= CFG.N || row < 0 || row >= CFG.N) return null;
+    return { col, row };
+  }
+
+  const key = (c, r) => c + ',' + r;
+  const inBounds = (c, r) => c >= 0 && c < CFG.N && r >= 0 && r < CFG.N;
+
+  function isDisabledCell(col, row) {
+    if (col === SPAWNER_POS.col && row === SPAWNER_POS.row) return true;
+    for (const s of SPAWN_CELLS) {
+      if (s.col === col && s.row === row) return true;
+    }
+    return false;
+  }
+  function isBaseCell(col, row) {
+    return col === BASE_POS.col && row === BASE_POS.row;
+  }
+  function isFortCell(col, row) {
+    return FORTS.some(f => f.col === col && f.row === row);
+  }
+  function isSpawnCell(col, row) {
+    return SPAWN_CELLS.some(s => s.col === col && s.row === row);
+  }
+
+  // ==================== 状态 ====================
+  const state = {
+    turn: 1,
+    completedTurns: 0,
+    meteors: CFG.START_METEORS,
+    pieces: new Map(),
+    monsters: [],
+    wave: 0,
+    phase: 'prepare',
+    gameOver: false,
+    victory: false,
+
+    placing: null,
+    selected: null,      // { col, row } 选中的棋子
+    controlAction: null, // 'shoot' | 'attack' | 'move'
+    hover: null,
+
+    arrows: [],
+    effects: [],
+
+    isProcessing: false,
+    turnPhase: null,
+    animT: 0,
+    animDur: 0.4,
+  };
+
+  // ==================== 初始化 ====================
+  function initPieces() {
+    state.pieces.set(key(BASE_POS.col, BASE_POS.row), {
+      type: 'base',
+      hp: CFG.BASE_HP,
+      maxHp: CFG.BASE_HP,
+    });
+    for (const f of FORTS) {
+      state.pieces.set(key(f.col, f.row), {
+        type: 'fort',
+        hp: CFG.FORT_HP,
+        maxHp: CFG.FORT_HP,
+      });
+    }
+  }
+
+  // ==================== Canvas ====================
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const SIZE = CFG.N * CFG.CELL;
+  canvas.width = SIZE * CFG.DPR;
+  canvas.height = SIZE * CFG.DPR;
+  canvas.style.width = SIZE + 'px';
+  canvas.style.height = SIZE + 'px';
+  ctx.scale(CFG.DPR, CFG.DPR);
+
+  // ==================== 绘制辅助 ====================
+  function roundRectCtx(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.lineTo(x + w - r, y);
+    c.quadraticCurveTo(x + w, y, x + w, y + r);
+    c.lineTo(x + w, y + h - r);
+    c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    c.lineTo(x + r, y + h);
+    c.quadraticCurveTo(x, y + h, x, y + h - r);
+    c.lineTo(x, y + r);
+    c.quadraticCurveTo(x, y, x + r, y);
+    c.closePath();
+  }
+  const roundRect = (x, y, w, h, r) => roundRectCtx(ctx, x, y, w, h, r);
+
+  // ==================== 图标 ====================
+  function iconStar(c, s) {
+    c.fillStyle = '#fff';
+    c.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 === 0 ? s : s * 0.42;
+      const a = -Math.PI / 2 + i * Math.PI / 5;
+      const x = Math.cos(a) * r, y = Math.sin(a) * r;
+      i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+    }
+    c.closePath(); c.fill();
+  }
+  function iconArcher(c, s) {
+    c.lineCap = 'round';
+    c.strokeStyle = '#fff';
+    c.lineWidth = s * 0.14;
+    c.beginPath();
+    c.arc(0, 0, s * 0.72, -Math.PI * 0.5, Math.PI * 0.5, true);
+    c.stroke();
+    c.lineWidth = s * 0.08;
+    c.beginPath();
+    c.moveTo(0, -s * 0.72); c.lineTo(0, s * 0.72);
+    c.stroke();
+    c.lineWidth = s * 0.11;
+    c.beginPath();
+    c.moveTo(-s * 0.55, 0); c.lineTo(s * 0.5, 0);
+    c.stroke();
+    c.fillStyle = '#fff';
+    c.beginPath();
+    c.moveTo(s * 0.85, 0);
+    c.lineTo(s * 0.42, -s * 0.28);
+    c.lineTo(s * 0.42, s * 0.28);
+    c.closePath(); c.fill();
+  }
+  function iconWarrior(c, s) {
+    c.fillStyle = '#fff';
+    c.beginPath();
+    c.moveTo(0, -s);
+    c.lineTo(s * 0.16, -s * 0.55);
+    c.lineTo(s * 0.16, s * 0.15);
+    c.lineTo(-s * 0.16, s * 0.15);
+    c.lineTo(-s * 0.16, -s * 0.55);
+    c.closePath(); c.fill();
+    c.fillRect(-s * 0.5, s * 0.15, s * 1.0, s * 0.16);
+    c.fillRect(-s * 0.09, s * 0.31, s * 0.18, s * 0.5);
+    c.beginPath(); c.arc(0, s * 0.9, s * 0.13, 0, Math.PI * 2); c.fill();
+  }
+  function iconBase(c, s) {
+    c.fillStyle = '#fff';
+    c.beginPath();
+    c.moveTo(-s * 0.75, s * 0.55);
+    c.lineTo(-s * 0.75, -s * 0.15);
+    c.lineTo(-s * 0.35, s * 0.1);
+    c.lineTo(0, -s * 0.6);
+    c.lineTo(s * 0.35, s * 0.1);
+    c.lineTo(s * 0.75, -s * 0.15);
+    c.lineTo(s * 0.75, s * 0.55);
+    c.closePath(); c.fill();
+    c.fillRect(-s * 0.75, s * 0.5, s * 1.5, s * 0.18);
+    c.fillStyle = 'rgba(0,0,0,0.45)';
+    c.beginPath(); c.arc(-s * 0.5, s * 0.32, s * 0.08, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(0, s * 0.32, s * 0.08, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(s * 0.5, s * 0.32, s * 0.08, 0, Math.PI * 2); c.fill();
+  }
+  function iconFort(c, s) {
+    c.fillStyle = '#fff';
+    c.beginPath();
+    c.moveTo(0, -s * 0.75);
+    c.lineTo(s * 0.68, -s * 0.48);
+    c.lineTo(s * 0.68, s * 0.08);
+    c.quadraticCurveTo(s * 0.68, s * 0.62, 0, s * 0.8);
+    c.quadraticCurveTo(-s * 0.68, s * 0.62, -s * 0.68, s * 0.08);
+    c.lineTo(-s * 0.68, -s * 0.48);
+    c.closePath(); c.fill();
+    c.fillStyle = 'rgba(0,0,0,0.35)';
+    c.fillRect(-s * 0.09, -s * 0.45, s * 0.18, s * 0.9);
+    c.fillRect(-s * 0.38, -s * 0.18, s * 0.76, s * 0.18);
+  }
+  function iconMonster(c, s) {
+    c.fillStyle = '#fff';
+    c.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = Math.PI / 3 * i - Math.PI / 2;
+      const x = Math.cos(a) * s * 0.9;
+      const y = Math.sin(a) * s * 0.9;
+      i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+    }
+    c.closePath();
+    c.fill();
+
+    c.fillStyle = 'rgba(0,0,0,0.55)';
+    c.beginPath();
+    c.arc(0, 0, s * 0.6, 0, Math.PI * 2);
+    c.fill();
+
+    c.fillStyle = '#fca5a5';
+    c.beginPath();
+    c.arc(-s * 0.2, -s * 0.05, s * 0.13, 0, Math.PI * 2);
+    c.fill();
+    c.beginPath();
+    c.arc(s * 0.2, -s * 0.05, s * 0.13, 0, Math.PI * 2);
+    c.fill();
+
+    c.fillStyle = '#fff';
+    c.beginPath();
+    c.arc(-s * 0.2, -s * 0.08, s * 0.05, 0, Math.PI * 2);
+    c.fill();
+    c.beginPath();
+    c.arc(s * 0.2, -s * 0.08, s * 0.05, 0, Math.PI * 2);
+    c.fill();
+
+    c.strokeStyle = '#fff';
+    c.lineWidth = s * 0.08;
+    c.beginPath();
+    c.arc(0, s * 0.15, s * 0.25, 0.2 * Math.PI, 0.8 * Math.PI);
+    c.stroke();
+
+    c.fillStyle = '#fff';
+    c.fillRect(-s * 0.04, -s * 0.95, s * 0.08, s * 0.15);
+    c.beginPath();
+    c.arc(0, -s * 0.95, s * 0.1, 0, Math.PI * 2);
+    c.fill();
+  }
+
+  const ICONS = {
+    star: iconStar,
+    archer: iconArcher,
+    warrior: iconWarrior,
+    base: iconBase,
+    fort: iconFort,
+    monster: iconMonster,
+  };
+
+  function paintPieceBody(c, cx, cy, size, type, theme) {
+    let main, dark, light;
+    if (theme === 'monster') {
+      main = C.monster;
+      dark = C.monsterD;
+      light = C.monsterL;
+    } else {
+      main = C.p1;
+      dark = C.p1d;
+      light = C.p1l;
+    }
+    const radius = size * 0.22;
+
+    c.fillStyle = 'rgba(0,0,0,0.55)';
+    roundRectCtx(c, cx - size / 2, cy - size / 2 + 2, size, size, radius);
+    c.fill();
+
+    const g = c.createLinearGradient(0, cy - size / 2, 0, cy + size / 2);
+    g.addColorStop(0.00, light);
+    g.addColorStop(0.45, main);
+    g.addColorStop(1.00, dark);
+    c.fillStyle = g;
+    roundRectCtx(c, cx - size / 2, cy - size / 2, size, size, radius);
+    c.fill();
+
+    c.strokeStyle = '#ffffff';
+    c.lineWidth = 2;
+    roundRectCtx(c, cx - size / 2, cy - size / 2, size, size, radius);
+    c.stroke();
+
+    if (type === 'base') {
+      c.strokeStyle = 'rgba(255,255,255,0.5)';
+      c.lineWidth = 1.5;
+      roundRectCtx(c, cx - size / 2 + 3.5, cy - size / 2 + 3.5, size - 7, size - 7, radius - 2);
+      c.stroke();
+    }
+
+    const iconFn = ICONS[type];
+    if (iconFn) {
+      c.save();
+      c.translate(cx, cy - 1);
+      c.shadowColor = 'rgba(0,0,0,0.6)';
+      c.shadowBlur = 4;
+      iconFn(c, size * 0.30);
+      c.restore();
+    }
+  }
+
+  function getPieceAt(col, row) {
+    return state.pieces.get(key(col, row));
+  }
+  function getMonsterAt(col, row) {
+    return state.monsters.find(m => m.col === col && m.row === row);
+  }
+
+  // ==================== 绘制 ====================
+  function drawFloor(col, row) {
+    const r = cellRect(col, row);
+    let fill = C.empty;
+
+    if (isBaseCell(col, row)) fill = C.base;
+    else if (isFortCell(col, row)) fill = C.fort;
+    else if (col === SPAWNER_POS.col && row === SPAWNER_POS.row) fill = C.spawner;
+    else if (isSpawnCell(col, row)) fill = C.spawnCell;
+
+    ctx.fillStyle = fill;
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+
+    ctx.strokeStyle = C.grid;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
+
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+
+    if (col === SPAWNER_POS.col && row === SPAWNER_POS.row) {
+      const pulse = 1 + 0.08 * Math.sin(performance.now() / 320);
+      ctx.save();
+      ctx.shadowColor = '#ef4444';
+      ctx.shadowBlur = 16 * pulse;
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 20, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy);
+      ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8);
+      ctx.stroke();
+    }
+    else if (isSpawnCell(col, row)) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(239,68,68,0.15)';
+      ctx.lineWidth = 1.5;
+      for (let i = -r.w; i < r.w; i += 12) {
+        ctx.beginPath();
+        ctx.moveTo(r.x + i, r.y);
+        ctx.lineTo(r.x + i + r.h, r.y + r.h);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawPieceVisual(col, row, piece, alpha = 1) {
+    const r = cellRect(col, row);
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+    const size = r.w - 12;
+    const half = size / 2;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    paintPieceBody(ctx, cx, cy, size, piece.type, 'player');
+
+    const hpStr = String(Math.max(0, piece.hp));
+    const fontSize = 12;
+    ctx.font = `900 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
+    const textW = ctx.measureText(hpStr).width;
+
+    const padX = 5;
+    const badgeH = 16;
+    const badgeW = Math.max(badgeH, textW + padX * 2);
+    const rad = badgeH / 2;
+    const bx = cx + half - badgeW - 1;
+    const by = cy + half - badgeH - 1;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    roundRect(bx, by, badgeW, badgeH, rad); ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.4;
+    roundRect(bx, by, badgeW, badgeH, rad); ctx.stroke();
+
+    const ratio = Math.max(0, piece.hp) / piece.maxHp;
+    ctx.fillStyle = ratio > 0.6 ? '#ffffff' : ratio > 0.3 ? '#fde68a' : '#fca5a5';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(hpStr, bx + badgeW / 2, by + badgeH / 2 + 0.5);
+
+    ctx.restore();
+  }
+
+  function drawMonsterVisual(mon, alpha = 1) {
+    let rCol = mon.col;
+    let rRow = mon.row;
+
+    if (state.isProcessing && state.turnPhase === 'monsterMove' && mon.oldCol !== undefined) {
+      const t = Math.min(1, state.animT);
+      const easeT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      rCol = mon.oldCol + (mon.col - mon.oldCol) * easeT;
+      rRow = mon.oldRow + (mon.row - mon.oldRow) * easeT;
+    }
+
+    const r = cellRect(rCol, rRow);
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+    const size = r.w - 12;
+    const half = size / 2;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    paintPieceBody(ctx, cx, cy, size, 'monster', 'monster');
+
+    const hpStr = String(Math.max(0, mon.hp));
+    const fontSize = 12;
+    ctx.font = `900 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
+    const textW = ctx.measureText(hpStr).width;
+
+    const padX = 5;
+    const badgeH = 16;
+    const badgeW = Math.max(badgeH, textW + padX * 2);
+    const rad = badgeH / 2;
+    const bx = cx + half - badgeW - 1;
+    const by = cy + half - badgeH - 1;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    roundRect(bx, by, badgeW, badgeH, rad); ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.4;
+    roundRect(bx, by, badgeW, badgeH, rad); ctx.stroke();
+
+    const ratio = Math.max(0, mon.hp) / mon.maxHp;
+    ctx.fillStyle = ratio > 0.6 ? '#ffffff' : ratio > 0.3 ? '#fde68a' : '#fca5a5';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(hpStr, bx + badgeW / 2, by + badgeH / 2 + 0.5);
+
+    ctx.restore();
+  }
+
+  // ==================== 交互逻辑 ====================
+  function getPlaceableCells() {
+    const set = new Set();
+    for (const [k, piece] of state.pieces) {
+      const [col, row] = k.split(',').map(Number);
+      for (const d of DIRS8) {
+        const c = col + d.dc;
+        const r = row + d.dr;
+        if (!inBounds(c, r)) continue;
+        if (isDisabledCell(c, r)) continue;
+        if (state.pieces.has(key(c, r))) continue;
+        if (getMonsterAt(c, r)) continue;
+        set.add(key(c, r));
+      }
+    }
+    return [...set].map(k => {
+      const [col, row] = k.split(',').map(Number);
+      return { col, row };
+    });
+  }
+
+  function drawPlaceHighlights() {
+    const cells = getPlaceableCells();
+    for (const { col, row } of cells) {
+      const r = cellRect(col, row);
+      ctx.fillStyle = 'rgba(34,197,94,0.18)';
+      ctx.fillRect(r.x + 4, r.y + 4, r.w - 8, r.h - 8);
+      ctx.strokeStyle = C.valid;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(r.x + 4.5, r.y + 4.5, r.w - 9, r.h - 9);
+    }
+  }
+
+  function drawShootRays(ctrl) {
+    const c0 = cellCenter(ctrl.col, ctrl.row);
+    for (const d of DIRS8) {
+      const nc = ctrl.col + d.dc;
+      const nr = ctrl.row + d.dr;
+      if (!inBounds(nc, nr)) continue;
+      const c1 = cellCenter(nc, nr);
+      const hit = findShootTarget(ctrl.col, ctrl.row, d.dc, d.dr);
+      const color = hit && hit.kind === 'monster' ? C.aim : C.aimEmpty;
+
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = hit ? 0.9 : 0.35;
+      ctx.lineWidth = hit ? 3 : 2;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(c0.x, c0.y);
+      ctx.lineTo(c1.x, c1.y);
+      ctx.stroke();
+      ctx.restore();
+
+      const ang = Math.atan2(c1.y - c0.y, c1.x - c0.x);
+      ctx.save();
+      ctx.translate(c1.x, c1.y);
+      ctx.rotate(ang);
+      ctx.fillStyle = color;
+      ctx.globalAlpha = hit ? 1 : 0.5;
+      ctx.beginPath();
+      ctx.moveTo(13, 0);
+      ctx.lineTo(-5, -9);
+      ctx.lineTo(-5, 9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawAttackHighlights(ctrl) {
+    for (const d of DIRS8) {
+      const c = ctrl.col + d.dc;
+      const r = ctrl.row + d.dr;
+      if (!inBounds(c, r)) continue;
+      const rect = cellRect(c, r);
+      const mon = getMonsterAt(c, r);
+      const isEnemy = !!mon;
+      ctx.fillStyle = isEnemy ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.06)';
+      ctx.fillRect(rect.x + 4, rect.y + 4, rect.w - 8, rect.h - 8);
+      ctx.strokeStyle = isEnemy ? C.attack : 'rgba(239,68,68,0.25)';
+      ctx.lineWidth = isEnemy ? 2.5 : 1;
+      ctx.strokeRect(rect.x + 4.5, rect.y + 4.5, rect.w - 9, rect.h - 9);
+    }
+  }
+
+  function drawMoveHighlights(ctrl) {
+    const targets = getMoveTargets(ctrl.col, ctrl.row);
+    for (const t of targets) {
+      const r = cellRect(t.col, t.row);
+      ctx.fillStyle = 'rgba(34,197,94,0.2)';
+      ctx.fillRect(r.x + 4, r.y + 4, r.w - 8, r.h - 8);
+      ctx.strokeStyle = C.move;
+      ctx.lineWidth = 1.8;
+      ctx.strokeRect(r.x + 4.5, r.y + 4.5, r.w - 9, r.h - 9);
+
+      const bx = r.x + 14;
+      const by = r.y + 14;
+      ctx.fillStyle = 'rgba(34,197,94,0.9)';
+      ctx.beginPath();
+      ctx.arc(bx, by, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = '900 11px ui-sans-serif, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(t.step, bx, by + 0.5);
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, SIZE, SIZE);
+
+    for (let row = 0; row < CFG.N; row++) {
+      for (let col = 0; col < CFG.N; col++) {
+        drawFloor(col, row);
+      }
+    }
+
+    if (state.placing) {
+      drawPlaceHighlights();
+    }
+
+    if (state.selected && state.controlAction) {
+      if (state.controlAction === 'shoot') drawShootRays(state.selected);
+      else if (state.controlAction === 'attack') drawAttackHighlights(state.selected);
+      else if (state.controlAction === 'move') drawMoveHighlights(state.selected);
+    }
+
+    for (const [k, piece] of state.pieces) {
+      const [col, row] = k.split(',').map(Number);
+      drawPieceVisual(col, row, piece);
+    }
+
+    for (const mon of state.monsters) {
+      drawMonsterVisual(mon);
+    }
+
+    if (state.placing && state.hover) {
+      const placeable = getPlaceableCells();
+      if (placeable.some(c => c.col === state.hover.col && c.row === state.hover.row)) {
+        const def = PIECES[state.placing];
+        drawPieceVisual(state.hover.col, state.hover.row, {
+          type: state.placing,
+          hp: def.maxHp,
+          maxHp: def.maxHp,
+        }, 0.6);
+      }
+    }
+
+    // 选中棋子的高亮
+    if (state.selected) {
+      const r = cellRect(state.selected.col, state.selected.row);
+      // 呼吸金边
+      const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 200);
+      ctx.save();
+      ctx.strokeStyle = C.select;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = C.select;
+      ctx.shadowBlur = 10 * pulse;
+      ctx.strokeRect(r.x + 3, r.y + 3, r.w - 6, r.h - 6);
+      ctx.restore();
+    }
+
+    if (state.hover) {
+      const r = cellRect(state.hover.col, state.hover.row);
+      ctx.strokeStyle = C.hover;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+    }
+
+    for (const a of state.arrows) {
+      const ang = Math.atan2(a.ty - a.y0, a.tx - a.x0);
+      ctx.save();
+      ctx.translate(a.x, a.y);
+      ctx.rotate(ang);
+      ctx.shadowColor = '#60a5fa';
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = '#bfdbfe';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(14, 0);
+      ctx.lineTo(-7, -6);
+      ctx.lineTo(-3, 0);
+      ctx.lineTo(-7, 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    for (const e of state.effects) {
+      drawEffect(e);
+    }
+  }
+
+  function drawEffect(e) {
+    const r = cellRect(e.col, e.row);
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+    const p = Math.min(1, e.t / e.dur);
+    const alpha = 1 - p;
+
+    if (e.type === 'damage') {
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.8;
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r.w * 0.3 + p * r.w * 0.4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#fca5a5';
+      ctx.font = `900 22px ui-sans-serif, system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+      ctx.lineWidth = 3;
+      ctx.strokeText(`-${e.amount}`, cx, cy - 20 - p * 20);
+      ctx.fillText(`-${e.amount}`, cx, cy - 20 - p * 20);
+      ctx.restore();
+    }
+    else if (e.type === 'death') {
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.9;
+      for (let i = 0; i < 6; i++) {
+        const ang = (Math.PI * 2 / 6) * i + p * 1;
+        const dist = p * 24;
+        const px = cx + Math.cos(ang) * dist;
+        const py = cy + Math.sin(ang) * dist;
+        ctx.fillStyle = e.color || '#fca5a5';
+        ctx.beginPath();
+        ctx.arc(px, py, 3 * (1 - p) + 1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    else if (e.type === 'attack') {
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.7;
+      ctx.fillStyle = '#fca5a5';
+      ctx.beginPath();
+      ctx.arc(cx, cy, r.w * 0.5 * p, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // ==================== 动作执行 ====================
+  function findShootTarget(col, row, dc, dr) {
+    let c = col + dc;
+    let r = row + dr;
+    while (inBounds(c, r)) {
+      if (c === SPAWNER_POS.col && r === SPAWNER_POS.row) {
+        return { col: c, row: r, kind: 'spawner' };
+      }
+      const mon = getMonsterAt(c, r);
+      if (mon) return { col: c, row: r, kind: 'monster', monster: mon };
+      const piece = getPieceAt(c, r);
+      if (piece) return { col: c, row: r, kind: 'piece', piece };
+      c += dc;
+      r += dr;
+    }
+    return null;
+  }
+
+  function doShoot(col, row, dc, dr) {
+    const piece = getPieceAt(col, row);
+    if (!piece || piece.kind === 'base' || piece.kind === 'fort') return false;
+
+    const hit = findShootTarget(col, row, dc, dr);
+    const start = cellCenter(col, row);
+    let end, target = null;
+
+    if (hit) {
+      end = cellCenter(hit.col, hit.row);
+      if (hit.kind === 'monster') target = { kind: 'monster', ref: hit.monster };
+      else if (hit.kind === 'piece') target = { kind: 'piece', col: hit.col, row: hit.row };
+    } else {
+      let c = col, r = row;
+      while (inBounds(c + dc, r + dr)) { c += dc; r += dr; }
+      const outCol = c + dc;
+      const outRow = r + dr;
+      end = {
+        x: (outCol + 0.5) * CFG.CELL,
+        y: (CFG.N - outRow - 0.5) * CFG.CELL,
+      };
+    }
+
+    const dist = Math.hypot(end.x - start.x, end.y - start.y);
+    const dur = Math.max(0.15, dist / 1400);
+
+    state.arrows.push({
+      x0: start.x, y0: start.y,
+      x: start.x, y: start.y,
+      tx: end.x, ty: end.y,
+      t: 0, dur, target,
+    });
+
+    endPlayerTurn();
+    return true;
+  }
+
+  function applyArrowDamage(arrow) {
+    if (!arrow.target) return;
+    if (arrow.target.kind === 'monster') {
+      const mon = arrow.target.ref;
+      if (!mon || mon.hp <= 0) return;
+      mon.hp -= 1;
+      addDamageEffect(mon.col, mon.row, 1);
+      if (mon.hp <= 0) killMonster(mon);
+    }
+  }
+
+  function doMeleeAttack(fromCol, fromRow, toCol, toRow) {
+    const attacker = getPieceAt(fromCol, fromRow);
+    if (!attacker) return false;
+    const mon = getMonsterAt(toCol, toRow);
+    if (!mon) return false;
+
+    const dmg = PIECES[attacker.type].attackDamage || 1;
+    mon.hp -= dmg;
+    addDamageEffect(toCol, toRow, dmg);
+    addEffect({ type: 'attack', col: toCol, row: toRow, t: 0, dur: 0.4 });
+    if (mon.hp <= 0) killMonster(mon);
+
+    endPlayerTurn();
+    return true;
+  }
+
+  function getMoveTargets(col, row) {
+    const piece = getPieceAt(col, row);
+    if (!piece || piece.type !== 'warrior') return [];
+    const range = PIECES.warrior.moveRange;
+
+    const out = [];
+    for (const d of DIRS4) {
+      for (let step = 1; step <= range; step++) {
+        const c = col + d.dc * step;
+        const r = row + d.dr * step;
+        if (!inBounds(c, r)) break;
+        if (state.pieces.has(key(c, r))) break;
+        if (getMonsterAt(c, r)) break;
+        if (isDisabledCell(c, r)) break;
+        out.push({ col: c, row: r, step });
+      }
+    }
+    return out;
+  }
+
+  function doMove(fromCol, fromRow, toCol, toRow) {
+    const piece = getPieceAt(fromCol, fromRow);
+    if (!piece) return false;
+    state.pieces.delete(key(fromCol, fromRow));
+    state.pieces.set(key(toCol, toRow), piece);
+    endPlayerTurn();
+    return true;
+  }
+
+  // ==================== 特效 ====================
+  function addEffect(e) { state.effects.push(e); }
+  function addDamageEffect(col, row, amount) {
+    addEffect({ type: 'damage', col, row, amount, t: 0, dur: 0.8 });
+  }
+  function addDeathEffect(col, row, color) {
+    addEffect({ type: 'death', col, row, t: 0, dur: 0.6, color });
+  }
+
+  function killMonster(mon) {
+    const idx = state.monsters.indexOf(mon);
+    if (idx >= 0) {
+      addDeathEffect(mon.col, mon.row, '#fca5a5');
+      state.monsters.splice(idx, 1);
+    }
+  }
+
+  // ==================== 放置 ====================
+  function doPlace(type, col, row) {
+    const def = PIECES[type];
+    if (!def) return false;
+    if (state.meteors < def.cost) return false;
+    if (state.pieces.has(key(col, row))) return false;
+    if (getMonsterAt(col, row)) return false;
+    if (isDisabledCell(col, row)) return false;
+
+    const legal = getPlaceableCells().some(c => c.col === col && c.row === row);
+    if (!legal) return false;
+
+    state.meteors -= def.cost;
+    state.pieces.set(key(col, row), {
+      type,
+      hp: def.maxHp,
+      maxHp: def.maxHp,
+    });
+    endPlayerTurn();
+    return true;
+  }
+
+  // ==================== 回合结算 ====================
+  function endPlayerTurn() {
+    if (state.gameOver || state.isProcessing) return;
+
+    state.selected = null;
+    state.controlAction = null;
+    state.placing = null;
+    renderActionPanel(); // 隐藏面板
+
+    state.completedTurns++;
+    state.turn = state.completedTurns + 1;
+
+    state.isProcessing = true;
+    state.turnPhase = 'projectile';
+
+    if (state.arrows.length === 0) {
+      startMonsterPhase();
+    }
+  }
+
+  function startMonsterPhase() {
+    if (shouldSpawnWave(state.completedTurns)) {
+      spawnWave();
+    }
+
+    const shouldMove = (state.completedTurns % CFG.MONSTER_MOVE_INTERVAL === 0);
+
+    if (shouldMove) {
+      for (const mon of state.monsters) {
+        mon.oldCol = mon.col;
+        mon.oldRow = mon.row;
+      }
+      executeMonsterTurn();
+      state.turnPhase = 'monsterMove';
+      state.animT = 0;
+    } else {
+      finishTurnPhase();
+    }
+  }
+
+  function finishTurnPhase() {
+    state.isProcessing = false;
+    state.turnPhase = null;
+
+    checkGameEnd();
+    if (!state.gameOver) {
+      produceMeteors();
+    }
+    updateHUD();
+  }
+
+  function updateTurnPhase(dt) {
+    if (!state.isProcessing) return;
+
+    if (state.turnPhase === 'projectile') {
+      if (state.arrows.length === 0) {
+        startMonsterPhase();
+      }
+    } else if (state.turnPhase === 'monsterMove') {
+      state.animT += dt / state.animDur;
+      if (state.animT >= 1) {
+        state.animT = 1;
+        finishTurnPhase();
+      }
+    }
+  }
+
+  function produceMeteors() {
+    let gained = 0;
+    for (const [, piece] of state.pieces) {
+      if (piece.type === 'star') gained += PIECES.star.produce;
+    }
+    state.meteors += gained;
+  }
+
+  function shouldSpawnWave(completedTurns) {
+    if (state.wave >= CFG.TOTAL_WAVES) return false;
+    if (completedTurns < CFG.SPAWN_TURN_START) return false;
+    if ((completedTurns - CFG.SPAWN_TURN_START) % CFG.SPAWN_INTERVAL !== 0) return false;
+    return true;
+  }
+
+  function spawnWave() {
+    const waveIdx = state.wave;
+    const count = CFG.WAVE_SIZES[waveIdx];
+
+    const available = SPAWN_CELLS.filter(s => {
+      if (state.pieces.has(key(s.col, s.row))) return false;
+      if (getMonsterAt(s.col, s.row)) return false;
+      return true;
+    });
+
+    const shuffled = [...available].sort(() => Math.random() - 0.5);
+
+    let spawned = 0;
+    for (const s of shuffled) {
+      if (spawned >= count) break;
+      state.monsters.push({
+        col: s.col,
+        row: s.row,
+        hp: CFG.MONSTER_HP,
+        maxHp: CFG.MONSTER_HP,
+        preferLeft: Math.random() < 0.5,
+        bornTurn: state.completedTurns,
+      });
+      spawned++;
+    }
+
+    state.wave++;
+    state.phase = 'battle';
+  }
+
+  function executeMonsterTurn() {
+    if (state.monsters.length === 0) return;
+
+    const sorted = [...state.monsters].sort((a, b) => {
+      return (a.col + a.row) - (b.col + b.row);
+    });
+
+    const occupied = new Set();
+
+    for (const mon of sorted) {
+      if (mon.bornTurn === state.completedTurns) continue;
+
+      const dirs = mon.preferLeft ? ['left', 'down'] : ['down', 'left'];
+      let acted = false;
+
+      for (const dir of dirs) {
+        const target = getTarget(mon, dir);
+        if (!target) continue;
+
+        const piece = getPieceAt(target.col, target.row);
+        if (piece) {
+          piece.hp -= CFG.MONSTER_ATK;
+          addDamageEffect(target.col, target.row, CFG.MONSTER_ATK);
+          addEffect({ type: 'attack', col: target.col, row: target.row, t: 0, dur: 0.4 });
+
+          if (piece.hp <= 0) {
+            state.pieces.delete(key(target.col, target.row));
+            addDeathEffect(target.col, target.row, '#93c5fd');
+          }
+          acted = true;
+          break;
+        }
+
+        if (occupied.has(key(target.col, target.row))) continue;
+        const other = state.monsters.find(m => m !== mon && m.col === target.col && m.row === target.row);
+        if (other) continue;
+
+        mon.col = target.col;
+        mon.row = target.row;
+        occupied.add(key(target.col, target.row));
+        acted = true;
+        break;
+      }
+    }
+  }
+
+  function getTarget(mon, dir) {
+    let c = mon.col, r = mon.row;
+    if (dir === 'left') c -= 1;
+    else if (dir === 'down') r -= 1;
+    else if (dir === 'right') c += 1;
+    else if (dir === 'up') r += 1;
+
+    if (!inBounds(c, r)) return null;
+    if (c === SPAWNER_POS.col && r === SPAWNER_POS.row) return null;
+    return { col: c, row: r };
+  }
+
+  // ==================== 胜负判定 ====================
+  function checkGameEnd() {
+    const basePiece = getPieceAt(BASE_POS.col, BASE_POS.row);
+    if (!basePiece || basePiece.hp <= 0) {
+      state.gameOver = true;
+      state.phase = 'defeat';
+      showGameOver(false);
+      return;
+    }
+
+    if (state.wave >= CFG.TOTAL_WAVES && state.monsters.length === 0) {
+      state.gameOver = true;
+      state.victory = true;
+      state.phase = 'victory';
+      showGameOver(true);
+      return;
+    }
+  }
+
+  function showGameOver(win) {
+    const overlay = document.getElementById('gameoverOverlay');
+    const card = document.getElementById('gameoverCard');
+    const title = document.getElementById('gameoverTitle');
+    const sub = document.getElementById('gameoverSub');
+
+    card.className = 'gameover-card ' + (win ? 'win' : 'lose');
+    title.textContent = win ? 'VICTORY' : 'DEFEAT';
+    sub.textContent = win ? '所有敌人已被歼灭' : '大本营已被摧毁';
+
+    overlay.classList.add('show');
+
+    if (win) {
+      try {
+        const SAVE_KEY = 'spartlle_adventure_v1';
+        const raw = localStorage.getItem(SAVE_KEY);
+        const save = raw ? JSON.parse(raw) : { version: 1, progress: {} };
+        if (!save.progress) save.progress = {};
+        const k = `c1-l1`;
+        const p = save.progress[k] || { easy: false, hard: false, x: false };
+        const params = new URLSearchParams(window.location.search);
+        const d = (params.get('d') || 'easy').toLowerCase();
+        if (d === 'easy' || d === 'hard' || d === 'x') {
+          p[d] = true;
+        }
+        save.progress[k] = p;
+        localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+      } catch (e) {
+        console.warn('写入存档失败', e);
+      }
+    }
+  }
+
+  // ==================== HUD & UI ====================
+  function updateHUD() {
+    document.getElementById('hudTurn').textContent = state.turn;
+    document.getElementById('hudMeteor').textContent = state.meteors;
+    document.getElementById('hudWave').textContent = `${state.wave} / ${CFG.TOTAL_WAVES}`;
+
+    const phaseEl = document.getElementById('hudPhase');
+    if (state.phase === 'prepare') {
+      phaseEl.textContent = '准备';
+      phaseEl.className = 'phase-tag prepare';
+    } else if (state.phase === 'battle') {
+      phaseEl.textContent = '战斗';
+      phaseEl.className = 'phase-tag battle';
+    } else if (state.phase === 'victory') {
+      phaseEl.textContent = '胜利';
+      phaseEl.className = 'phase-tag prepare';
+    } else if (state.phase === 'defeat') {
+      phaseEl.textContent = '失败';
+      phaseEl.className = 'phase-tag battle';
+    }
+
+    document.querySelectorAll('.piece-btn').forEach(btn => {
+      const type = btn.dataset.piece;
+      const def = PIECES[type];
+      const canAfford = state.meteors >= def.cost;
+      btn.disabled = state.gameOver || state.isProcessing || !canAfford;
+      btn.classList.toggle('active', state.placing === type);
+    });
+    document.getElementById('skipBtn').disabled = state.gameOver || state.isProcessing;
+
+    // 提示文字
+    const hint = document.getElementById('hint');
+    if (state.gameOver) {
+      hint.textContent = state.victory ? '胜利！' : '失败...';
+      hint.classList.remove('hidden');
+    } else if (state.isProcessing) {
+      hint.textContent = '敌人行动中...';
+      hint.classList.remove('hidden');
+    } else if (state.placing) {
+      const def = PIECES[state.placing];
+      hint.textContent = `选择绿色格放置「${def.name}」`;
+      hint.classList.remove('hidden');
+    } else if (state.selected && state.controlAction) {
+      hint.classList.add('hidden'); // 操作面板已显示，隐藏提示栏
+    } else if (state.selected) {
+      hint.classList.add('hidden');
+    } else if (state.phase === 'prepare') {
+      const turnsLeft = CFG.SPAWN_TURN_START - state.completedTurns - 1;
+      hint.textContent = turnsLeft > 0
+        ? `发育阶段 · 还有 ${turnsLeft} 回合敌军抵达`
+        : '即将迎来敌军';
+      hint.classList.remove('hidden');
+    } else {
+      const nextMoveIn = CFG.MONSTER_MOVE_INTERVAL - (state.completedTurns % CFG.MONSTER_MOVE_INTERVAL);
+      hint.textContent = `点击己方棋子操作 · 怪物还有 ${nextMoveIn} 回合行动`;
+      hint.classList.remove('hidden');
+    }
+  }
+
+  // ★ 渲染操作面板
+  function renderActionPanel() {
+    const panel = document.getElementById('actionPanel');
+    const title = document.getElementById('actionPanelTitle');
+    const btnContainer = document.getElementById('actionButtons');
+
+    if (!state.selected || state.gameOver || state.isProcessing) {
+      panel.classList.remove('show');
+      return;
+    }
+
+    const piece = getPieceAt(state.selected.col, state.selected.row);
+    if (!piece) {
+      panel.classList.remove('show');
+      return;
+    }
+
+    title.textContent = PIECES[piece.type].name;
+    btnContainer.innerHTML = '';
+
+    const addBtn = (label, action, activeClass) => {
+      const b = document.createElement('button');
+      b.className = 'action-btn ' + activeClass;
+      b.textContent = label;
+      if (state.controlAction === action) b.classList.add('active');
+      b.onclick = () => {
+        state.controlAction = action;
+        updateHUD();
+        renderActionPanel();
+        draw();
+      };
+      btnContainer.appendChild(b);
+    };
+
+    if (piece.type === 'archer') {
+      addBtn('射击', 'shoot', 'btn-shoot');
+    } else if (piece.type === 'warrior') {
+      addBtn('攻击', 'attack', 'btn-attack');
+      addBtn('移动', 'move', 'btn-move');
+    }
+
+    // 取消按钮
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'action-btn btn-cancel';
+    cancelBtn.textContent = '取消';
+    cancelBtn.onclick = () => clearSelection();
+    btnContainer.appendChild(cancelBtn);
+
+    panel.classList.add('show');
+  }
+
+  function clearSelection() {
+    state.selected = null;
+    state.controlAction = null;
+    renderActionPanel();
+    updateHUD();
+    draw();
+  }
+
+  // ==================== 输入 ====================
+  canvas.addEventListener('mousemove', (e) => {
+    if (state.isProcessing) return;
+    const rect = canvas.getBoundingClientRect();
+    const cell = pixelToCell(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height);
+    const prev = state.hover;
+    const same = prev && cell && prev.col === cell.col && prev.row === cell.row;
+    if (same || (!prev && !cell)) return;
+    state.hover = cell;
+    
+    // 动态光标
+    if (state.selected && state.controlAction && cell) {
+      let isTarget = false;
+      const { col, row } = state.selected;
+      const dc = cell.col - col;
+      const dr = cell.row - row;
+      const inAdj8 = Math.abs(dc) <= 1 && Math.abs(dr) <= 1 && (dc !== 0 || dr !== 0);
+
+      if (state.controlAction === 'shoot' && inAdj8) isTarget = true;
+      else if (state.controlAction === 'attack' && inAdj8 && getMonsterAt(cell.col, cell.row)) isTarget = true;
+      else if (state.controlAction === 'move') {
+        const targets = getMoveTargets(col, row);
+        if (targets.some(t => t.col === cell.col && t.row === cell.row)) isTarget = true;
+      }
+      
+      canvas.style.cursor = isTarget ? 'pointer' : (isTarget === false ? 'not-allowed' : 'pointer');
+      if (state.controlAction === 'shoot' && inAdj8) canvas.style.cursor = 'crosshair';
+    } else {
+      canvas.style.cursor = 'pointer';
+    }
+    
+    draw();
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    if (!state.hover) return;
+    state.hover = null;
+    draw();
+  });
+
+  // 右键取消
+  canvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (state.isProcessing || state.gameOver) return;
+    if (state.placing) {
+      state.placing = null;
+      updateHUD();
+      draw();
+      return;
+    }
+    if (state.selected) {
+      clearSelection();
+    }
+  });
+
+  // 左键点击
+  canvas.addEventListener('click', (e) => {
+    if (state.gameOver || state.isProcessing) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const cell = pixelToCell(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height);
+    if (!cell) {
+      if (state.placing) {
+        state.placing = null;
+        updateHUD();
+        draw();
+      } else if (state.selected) {
+        clearSelection();
+      }
+      return;
+    }
+
+    // 如果有选中的棋子，正在操作模式
+    if (state.selected && state.controlAction) {
+      const { col, row } = state.selected;
+      const dc = cell.col - col;
+      const dr = cell.row - row;
+      const inAdj8 = Math.abs(dc) <= 1 && Math.abs(dr) <= 1 && (dc !== 0 || dr !== 0);
+
+      if (state.controlAction === 'shoot' && inAdj8) {
+        doShoot(col, row, dc, dr);
+        updateHUD();
+        draw();
+        return;
+      }
+      if (state.controlAction === 'attack' && inAdj8) {
+        if (doMeleeAttack(col, row, cell.col, cell.row)) {
+          updateHUD();
+          draw();
+          return;
+        }
+      }
+      if (state.controlAction === 'move') {
+        const targets = getMoveTargets(col, row);
+        if (targets.some(t => t.col === cell.col && t.row === cell.row)) {
+          doMove(col, row, cell.col, cell.row);
+          updateHUD();
+          draw();
+          return;
+        }
+      }
+      
+      // 点非法目标 → 清空选中状态
+      clearSelection();
+      return;
+    }
+
+    // 放置模式
+    if (state.placing) {
+      if (doPlace(state.placing, cell.col, cell.row)) {
+        state.placing = null;
+        updateHUD();
+        draw();
+        return;
+      }
+      // 放不进去就保持放置模式
+      return;
+    }
+
+    // 普通选中
+    const piece = getPieceAt(cell.col, cell.row);
+    if (piece && (piece.type === 'archer' || piece.type === 'warrior')) {
+      state.selected = { col: cell.col, row: cell.row };
+      state.controlAction = null; // 先弹出面板，等待玩家选动作
+      renderActionPanel();
+      updateHUD();
+      draw();
+      return;
+    }
+
+    // 点其他位置取消选中
+    if (state.selected) clearSelection();
+  });
+
+  // 全局键盘取消
+  document.addEventListener('keydown', (e) => {
+    if (state.gameOver || state.isProcessing) return;
+    if (e.key === 'Escape') {
+      if (state.placing) {
+        state.placing = null;
+        updateHUD();
+        draw();
+      } else if (state.selected) {
+        clearSelection();
+      }
+    }
+  });
+
+  // 底部按钮
+  document.querySelectorAll('.piece-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (state.gameOver || state.isProcessing) return;
+      const type = btn.dataset.piece;
+      if (state.placing === type) {
+        state.placing = null;
+      } else {
+        state.placing = type;
+        state.selected = null;
+        state.controlAction = null;
+        renderActionPanel();
+      }
+      updateHUD();
+      draw();
+    });
+  });
+
+  document.getElementById('skipBtn').addEventListener('click', () => {
+    if (state.gameOver || state.isProcessing) return;
+    state.placing = null;
+    state.selected = null;
+    state.controlAction = null;
+    renderActionPanel();
+    endPlayerTurn();
+  });
+
+  document.getElementById('backBtn').addEventListener('click', () => {
+    window.location.href = 'adventure.html';
+  });
+
+  document.getElementById('gameoverBackBtn').addEventListener('click', () => {
+    window.location.href = 'adventure.html';
+  });
+  document.getElementById('gameoverRetryBtn').addEventListener('click', () => {
+    window.location.reload();
+  });
+
+  // ==================== 渲染底部棋子图标 ====================
+  function renderPieceIcons() {
+    document.querySelectorAll('.piece-btn').forEach(btn => {
+      const type = btn.dataset.piece;
+      const cv = btn.querySelector('canvas');
+      const c = cv.getContext('2d');
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cv.width = 88 * dpr;
+      cv.height = 88 * dpr;
+      cv.style.width = '44px';
+      cv.style.height = '44px';
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.clearRect(0, 0, 88, 88);
+      paintPieceBody(c, 44, 44, 76, type, 'player');
+    });
+  }
+
+  // ==================== 主循环 ====================
+  let lastTime = performance.now();
+  function loop(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.1);
+    lastTime = now;
+
+    for (let i = state.arrows.length - 1; i >= 0; i--) {
+      const a = state.arrows[i];
+      a.t += dt / a.dur;
+      if (a.t >= 1) {
+        applyArrowDamage(a);
+        state.arrows.splice(i, 1);
+      } else {
+        a.x = a.x0 + (a.tx - a.x0) * a.t;
+        a.y = a.y0 + (a.ty - a.y0) * a.t;
+      }
+    }
+
+    for (let i = state.effects.length - 1; i >= 0; i--) {
+      const e = state.effects[i];
+      e.t += dt;
+      if (e.t >= e.dur) state.effects.splice(i, 1);
+    }
+
+    updateTurnPhase(dt);
+
+    draw();
+
+    requestAnimationFrame(loop);
+  }
+
+  // ==================== 星空背景 ====================
+  const starfield = document.getElementById('starfield');
+  const sctx = starfield.getContext('2d');
+  let W = 0, H = 0, sDPR = 1;
+  function resizeStars() {
+    sDPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    starfield.width = W * sDPR;
+    starfield.height = H * sDPR;
+    starfield.style.width = W + 'px';
+    starfield.style.height = H + 'px';
+    sctx.setTransform(sDPR, 0, 0, sDPR, 0, 0);
+  }
+  const stars = [];
+  function initStars() {
+    stars.length = 0;
+    for (let i = 0; i < 160; i++) {
+      const layer = Math.random() < 0.5 ? 0 : Math.random() < 0.7 ? 1 : 2;
+      const size =
+        layer === 0 ? 0.3 + Math.random() * 0.5 :
+        layer === 1 ? 0.6 + Math.random() * 0.9 :
+                      1.2 + Math.random() * 1.5;
+      const speed =
+        layer === 0 ? 5 + Math.random() * 6 :
+        layer === 1 ? 12 + Math.random() * 10 :
+                      22 + Math.random() * 16;
+      stars.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: size, vy: speed,
+        vx: speed * 0.08 * (Math.random() < 0.5 ? -1 : 1),
+        twinkle: Math.random() * Math.PI * 2,
+        twinkleSpeed: 0.015 + Math.random() * 0.04,
+        baseAlpha: 0.4 + Math.random() * 0.5,
+      });
+    }
+  }
+  let starLast = performance.now();
+  function drawStars(now) {
+    const dt = Math.min((now - starLast) / 1000, 0.1);
+    starLast = now;
+
+    const bg = sctx.createRadialGradient(
+      W * 0.5, H * 0.4, 0,
+      W * 0.5, H * 0.4, Math.max(W, H) * 0.85
+    );
+    bg.addColorStop(0, '#0a0a1f');
+    bg.addColorStop(0.5, '#070712');
+    bg.addColorStop(1, '#030308');
+    sctx.fillStyle = bg;
+    sctx.fillRect(0, 0, W, H);
+
+    for (const s of stars) {
+      s.twinkle += s.twinkleSpeed * 60 * dt;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      if (s.y > H + 5) { s.y = -5; s.x = Math.random() * W; }
+      if (s.x > W + 5) s.x = -5;
+      if (s.x < -5) s.x = W + 5;
+
+      const alpha = s.baseAlpha * (0.75 + 0.25 * Math.sin(s.twinkle));
+      sctx.globalAlpha = alpha;
+      sctx.fillStyle = '#ffffff';
+      sctx.beginPath();
+      sctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      sctx.fill();
+    }
+    sctx.globalAlpha = 1;
+    requestAnimationFrame(drawStars);
+  }
+
+  // ==================== 启动 ====================
+  function boot() {
+    resizeStars();
+    initStars();
+    requestAnimationFrame(drawStars);
+
+    initPieces();
+    renderPieceIcons();
+    updateHUD();
+    draw();
+    requestAnimationFrame(loop);
+
+    window.addEventListener('resize', () => {
+      resizeStars();
+      initStars();
+    });
+  }
+
+  boot();
+
+  window.__battle = {
+    state,
+    CFG,
+    PIECES,
+    endPlayerTurn,
+    spawnWave,
+  };
+})();
+</script>
+</body>
+</html>

@@ -482,12 +482,12 @@
   document.querySelectorAll('.menu-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const mode = btn.dataset.mode;
-      if (mode === 'free') {
-        window.location.href = 'game.html';
-      } else if (mode === 'adventure') {
-        showToast('<span class="highlight">冒险模式</span> · 开发中');
+      if (mode === 'adventure') {
+        window.location.href = 'adventure.html';
       } else if (mode === 'defense') {
         showToast('<span class="highlight">防御敌袭</span> · 开发中');
+      } else if (mode === 'free') {
+        window.location.href = 'game.html';
       }
     });
   });

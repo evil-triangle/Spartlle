@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spartlle · 剧情</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Michroma&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #000;
+    color: #cbd5e1;
+    font-family: 'Rajdhani', -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    user-select: none;
+  }
+
+  #starfield {
+    position: fixed; inset: 0;
+    display: block; z-index: 0;
+    opacity: 0;
+    transition: opacity 2s ease-in-out;
+  }
+  #starfield.visible { opacity: 1; }
+
+  .vignette {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.9) 100%);
+    pointer-events: none; z-index: 1;
+    opacity: 0;
+    transition: opacity 2s ease-in-out;
+  }
+  .vignette.visible { opacity: 1; }
+
+  /* ===== 屏幕容器 ===== */
+  .screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.2s ease-in-out;
+    z-index: 2;
+    padding: 20px;
+  }
+  .screen.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* ===== 第一屏：WELCOME ===== */
+  .welcome-text {
+    font-family: 'Michroma', sans-serif;
+    font-size: clamp(16px, 3vw, 38px);
+    letter-spacing: 0.22em;
+    text-indent: 0.22em;
+    color: #ffffff;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 1.4s ease-in-out;
+    text-shadow:
+      0 0 20px rgba(255,255,255,0.5),
+      0 0 60px rgba(125,211,252,0.3);
+    white-space: nowrap;
+    max-width: 90vw;
+    overflow: hidden;
+  }
+  .welcome-text.fade-in { opacity: 1; }
+  .welcome-text.fade-out { opacity: 0; }
+
+  /* ===== 第二屏：剧情 ===== */
+  .story-content {
+    width: 100%;
+    max-width: 720px;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 20px 10px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(96,165,250,0.3) transparent;
+  }
+  .story-content::-webkit-scrollbar { width: 4px; }
+  .story-content::-webkit-scrollbar-track { background: transparent; }
+  .story-content::-webkit-scrollbar-thumb {
+    background: rgba(96,165,250,0.25);
+    border-radius: 2px;
+  }
+
+  .story-line {
+    font-family: 'Songti SC', 'STSong', 'SimSun', 'Noto Serif SC', serif;
+    font-size: clamp(15px, 1.6vw, 18px);
+    line-height: 1.95;
+    color: #cbd5e1;
+    text-align: left;
+    margin-bottom: 16px;
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.9s cubic-bezier(0.2, 0.9, 0.3, 1),
+                transform 0.9s cubic-bezier(0.2, 0.9, 0.3, 1),
+                color 0.3s;
+  }
+  .story-line.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .story-line.dialogue {
+    color: #7dd3fc;
+    padding-left: 20px;
+    border-left: 2px solid rgba(125,211,252,0.4);
+    text-shadow: 0 0 12px rgba(125,211,252,0.3);
+  }
+
+  .story-line.monologue {
+    color: #94a3b8;
+    font-style: italic;
+  }
+
+  .story-line.emphasis {
+    color: #fde68a;
+    font-size: clamp(17px, 1.9vw, 21px);
+    text-shadow: 0 0 16px rgba(253,230,138,0.5);
+    font-weight: 600;
+  }
+
+  /* ===== 返回按钮 ===== */
+  .back-btn {
+    position: fixed;
+    top: 24px;
+    left: 24px;
+    z-index: 20;
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 18px;
+    background: rgba(15,23,42,0.7);
+    border: 1px solid rgba(148,163,184,0.25);
+    border-radius: 4px;
+    color: #94a3b8;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px; font-weight: 700;
+    letter-spacing: 0.2em;
+    cursor: pointer;
+    transition: all 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
+    backdrop-filter: blur(6px);
+    opacity: 0.6;
+  }
+  .back-btn:hover {
+    opacity: 1;
+    color: #fff;
+    border-color: #60a5fa;
+    box-shadow: 0 0 18px rgba(96,165,250,0.5);
+    transform: translateY(-1px);
+  }
+  .back-btn:active { transform: translateY(0) scale(0.98); }
+
+  /* ===== 继续按钮 ===== */
+  .continue-btn {
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    z-index: 20;
+    padding: 14px 44px;
+    background: linear-gradient(180deg, rgba(15,23,42,0.9) 0%, rgba(8,12,24,0.95) 100%);
+    border: 1.5px solid rgba(96,165,250,0.5);
+    border-radius: 6px;
+    color: #7dd3fc;
+    font-family: 'Michroma', sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.4em;
+    text-indent: 0.4em;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.5s cubic-bezier(0.2, 0.9, 0.3, 1);
+    box-shadow:
+      0 0 0 1px rgba(96,165,250,0.2),
+      0 0 40px rgba(96,165,250,0.35);
+  }
+  .continue-btn.show {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+  }
+  .continue-btn:hover {
+    color: #fff;
+    border-color: #60a5fa;
+    box-shadow:
+      0 0 0 1px rgba(96,165,250,0.5),
+      0 0 50px rgba(96,165,250,0.6);
+    transform: translateX(-50%) translateY(-2px);
+  }
+  .continue-btn:active {
+    transform: translateX(-50%) translateY(0) scale(0.98);
+  }
+</style>
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+<div class="vignette" id="vignette"></div>
+
+<!-- 第一屏 -->
+<div class="screen active" id="screenWelcome">
+  <div class="welcome-text" id="welcomeText">WELCOME TO SPARTLLE</div>
+</div>
+
+<!-- 第二屏 -->
+<div class="screen" id="screenStory">
+  <div class="story-content" id="storyContent"></div>
+</div>
+
+<!-- 返回按钮 -->
+<button class="back-btn" id="backBtn">← 返回</button>
+
+<!-- 继续按钮 -->
+<button class="continue-btn" id="continueBtn">继 续 →</button>
+
+<script>
+(() => {
+  'use strict';
+
+  // ==================== 剧情数据 ====================
+  const STORIES = {
+    'c1-l1': [
+      { text: '大宇宙联邦，一个伟大的国度。', type: 'narrator' },
+      { text: 'CORER，是联邦 1 万亿注册意识体的叠加产物，它反映着联邦的民主。', type: 'narrator' },
+      { text: '“我们遭遇了外来势力的入侵。它们要来了。”', type: 'dialogue' },
+      { text: '你，一个高级工程师。', type: 'narrator' },
+      { text: '“我或许可以控制我的自动装备，试图击退，乃至剿灭它们。”', type: 'dialogue' },
+      { text: 'CORER 相信你，因为你的科技在大宇宙联邦的盛世时曾绽放绚丽的光彩。', type: 'narrator' },
+      { text: '时间过得真快啊。那时候，得 300 万年以前了吧......', type: 'monologue' },
+      { text: '“我接受任务。我保证不让联邦失望！”', type: 'dialogue' },
+      { text: '你缓缓敬了礼。', type: 'narrator' },
+      { text: '你深知，前方的路并不好走。', type: 'narrator' },
+      { text: '但你充满了决心。', type: 'emphasis' },
+    ],
+  };
+
+  // ==================== 读 URL 参数 ====================
+  function getParams() {
+    const p = new URLSearchParams(window.location.search);
+    return {
+      c: parseInt(p.get('c') || '1', 10),
+      l: parseInt(p.get('l') || '1', 10),
+    };
+  }
+  const { c, l } = getParams();
+  const storyKey = `c${c}-l${l}`;
+  const lines = STORIES[storyKey] || [
+    { text: '（本关暂无剧情）', type: 'narrator' },
+  ];
+
+  // ==================== DOM ====================
+  const screenWelcome = document.getElementById('screenWelcome');
+  const screenStory = document.getElementById('screenStory');
+  const welcomeText = document.getElementById('welcomeText');
+  const storyContent = document.getElementById('storyContent');
+  const starfield = document.getElementById('starfield');
+  const vignette = document.getElementById('vignette');
+  const continueBtn = document.getElementById('continueBtn');
+  const backBtn = document.getElementById('backBtn');
+
+  // ==================== 星空背景 ====================
+  const ctx = starfield.getContext('2d');
+  let W = 0, H = 0, DPR = 1;
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    starfield.width = W * DPR;
+    starfield.height = H * DPR;
+    starfield.style.width = W + 'px';
+    starfield.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+
+  const stars = [];
+  function initStars() {
+    stars.length = 0;
+    for (let i = 0; i < 220; i++) {
+      const layer = Math.random() < 0.5 ? 0 : Math.random() < 0.7 ? 1 : 2;
+      const size =
+        layer === 0 ? 0.3 + Math.random() * 0.5 :
+        layer === 1 ? 0.6 + Math.random() * 0.9 :
+                      1.2 + Math.random() * 1.5;
+      const speed =
+        layer === 0 ? 5 + Math.random() * 6 :
+        layer === 1 ? 12 + Math.random() * 10 :
+                      22 + Math.random() * 16;
+      stars.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: size, vy: speed,
+        vx: speed * 0.08 * (Math.random() < 0.5 ? -1 : 1),
+        twinkle: Math.random() * Math.PI * 2,
+        twinkleSpeed: 0.015 + Math.random() * 0.04,
+        baseAlpha: 0.4 + Math.random() * 0.5,
+      });
+    }
+  }
+
+  let lastTime = performance.now();
+  function drawStars(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.1);
+    lastTime = now;
+
+    const bg = ctx.createRadialGradient(
+      W * 0.5, H * 0.4, 0,
+      W * 0.5, H * 0.4, Math.max(W, H) * 0.85
+    );
+    bg.addColorStop(0, '#0a0a1f');
+    bg.addColorStop(0.5, '#070712');
+    bg.addColorStop(1, '#030308');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    for (const s of stars) {
+      s.twinkle += s.twinkleSpeed * 60 * dt;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      if (s.y > H + 5) { s.y = -5; s.x = Math.random() * W; }
+      if (s.x > W + 5) s.x = -5;
+      if (s.x < -5) s.x = W + 5;
+
+      const alpha = s.baseAlpha * (0.75 + 0.25 * Math.sin(s.twinkle));
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(drawStars);
+  }
+
+  // ==================== 剧情流程 ====================
+  let storyRevealTimer = null;
+  let revealedCount = 0;
+
+  function startStoryReveal() {
+    revealedCount = 0;
+    revealNext();
+    storyContent.addEventListener('click', fastForward);
+  }
+
+  function revealNext() {
+    if (revealedCount >= lines.length) {
+      setTimeout(() => {
+        continueBtn.classList.add('show');
+      }, 800);
+      return;
+    }
+
+    const item = lines[revealedCount];
+    const lineEl = document.createElement('div');
+    lineEl.className = 'story-line';
+    if (item.type === 'dialogue') lineEl.classList.add('dialogue');
+    if (item.type === 'monologue') lineEl.classList.add('monologue');
+    if (item.type === 'emphasis') lineEl.classList.add('emphasis');
+    lineEl.textContent = item.text;
+    storyContent.appendChild(lineEl);
+
+    requestAnimationFrame(() => {
+      lineEl.classList.add('show');
+      storyContent.scrollTop = storyContent.scrollHeight;
+    });
+
+    revealedCount++;
+    storyRevealTimer = setTimeout(revealNext, 1200);
+  }
+
+  function fastForward() {
+    if (revealedCount >= lines.length) return;
+    if (storyRevealTimer) clearTimeout(storyRevealTimer);
+    while (revealedCount < lines.length) {
+      const item = lines[revealedCount];
+      const lineEl = document.createElement('div');
+      lineEl.className = 'story-line';
+      if (item.type === 'dialogue') lineEl.classList.add('dialogue');
+      if (item.type === 'monologue') lineEl.classList.add('monologue');
+      if (item.type === 'emphasis') lineEl.classList.add('emphasis');
+      lineEl.textContent = item.text;
+      storyContent.appendChild(lineEl);
+      requestAnimationFrame(() => lineEl.classList.add('show'));
+      revealedCount++;
+    }
+    storyContent.scrollTop = storyContent.scrollHeight;
+    setTimeout(() => continueBtn.classList.add('show'), 500);
+    storyContent.removeEventListener('click', fastForward);
+  }
+
+  // ==================== 启动时间线 ====================
+  function runTimeline() {
+    setTimeout(() => {
+      welcomeText.classList.add('fade-in');
+    }, 300);
+
+    setTimeout(() => {
+      welcomeText.classList.remove('fade-in');
+      welcomeText.classList.add('fade-out');
+    }, 4500);
+
+    setTimeout(() => {
+      screenWelcome.classList.remove('active');
+      starfield.classList.add('visible');
+      vignette.classList.add('visible');
+      screenStory.classList.add('active');
+      setTimeout(startStoryReveal, 1200);
+    }, 6000);
+  }
+
+  // ==================== 事件绑定 ====================
+  backBtn.addEventListener('click', () => {
+    if (storyRevealTimer) clearTimeout(storyRevealTimer);
+    window.location.href = 'adventure.html';
+  });
+
+  continueBtn.addEventListener('click', () => {
+    window.location.href = 'adventure.html';
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (storyRevealTimer) clearTimeout(storyRevealTimer);
+      window.location.href = 'adventure.html';
+    }
+  });
+
+  // ==================== 启动 ====================
+  resize();
+  initStars();
+  requestAnimationFrame(drawStars);
+  runTimeline();
+
+  window.addEventListener('resize', () => {
+    resize();
+    initStars();
+  });
+
+  window.__story = { lines, fastForward, get revealed() { return revealedCount; } };
+})();
+</script>
+</body>
+</html>
