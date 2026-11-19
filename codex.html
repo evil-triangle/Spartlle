@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Spartlle · 棋子图鉴</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Michroma&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden; background: #05050d; color: #e2e8f0;
+    font-family: 'Rajdhani', -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    user-select: none; touch-action: none;
+  }
+
+  #starfield { position: fixed; inset: 0; display: block; z-index: 0; }
+  .vignette {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.9) 100%);
+    pointer-events: none; z-index: 1;
+  }
+
+  /* ===== 顶部栏 ===== */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px; padding-top: calc(12px + env(safe-area-inset-top));
+    background: linear-gradient(180deg, rgba(5,5,13,0.95) 0%, rgba(5,5,13,0) 100%);
+    pointer-events: none;
+  }
+  .topbar > * { pointer-events: auto; }
+
+  .back-btn {
+    display: flex; align-items: center; gap: 6px; padding: 8px 16px;
+    background: rgba(15,23,42,0.85); border: 1px solid rgba(148,163,184,0.22);
+    border-radius: 4px; color: #94a3b8; font-family: 'Rajdhani', sans-serif;
+    font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.22s;
+    backdrop-filter: blur(6px);
+  }
+  .back-btn:hover, .back-btn:active { color: #fff; border-color: #60a5fa; box-shadow: 0 0 16px rgba(96,165,250,0.5); }
+
+  .mode-title {
+    font-family: 'Michroma', sans-serif; font-size: 18px; letter-spacing: 0.3em;
+    color: #d8b4fe; text-shadow: 0 0 8px rgba(216,180,254,0.9), 0 0 24px rgba(168,85,247,0.5);
+  }
+
+  /* ===== 分类 Tab ===== */
+  .tabs-container {
+    position: fixed; top: 60px; top: calc(60px + env(safe-area-inset-top)); left: 0; right: 0;
+    z-index: 9; display: flex; justify-content: center; padding: 10px 16px;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .tabs-container::-webkit-scrollbar { display: none; }
+  .tabs {
+    display: flex; gap: 8px; padding: 6px;
+    background: rgba(15,23,42,0.85); border: 1px solid rgba(148,163,184,0.22);
+    border-radius: 99px; backdrop-filter: blur(6px); white-space: nowrap;
+  }
+  .tab-btn {
+    padding: 6px 16px; border-radius: 99px; background: transparent;
+    border: 1px solid transparent; color: #94a3b8;
+    font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tab-btn:hover { color: #fff; background: rgba(255,255,255,0.05); }
+  .tab-btn.active {
+    background: rgba(168,85,247,0.2); color: #d8b4fe;
+    border-color: rgba(168,85,247,0.5); box-shadow: 0 0 12px rgba(168,85,247,0.3);
+  }
+
+  /* ===== 卡片网格 ===== */
+  .codex-content {
+    position: fixed; top: 120px; top: calc(120px + env(safe-area-inset-top)); bottom: 0; left: 0; right: 0;
+    z-index: 5; overflow-y: auto; padding: 20px;
+    display: flex; justify-content: center;
+  }
+  .codex-content::-webkit-scrollbar { width: 6px; }
+  .codex-content::-webkit-scrollbar-thumb { background: rgba(168,85,247,0.3); border-radius: 3px; }
+
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px; width: 100%; max-width: 1000px; align-content: start;
+  }
+
+  .card {
+    display: flex; gap: 16px; padding: 16px;
+    background: linear-gradient(180deg, rgba(15,23,42,0.85) 0%, rgba(8,12,24,0.95) 100%);
+    border: 1px solid rgba(148,163,184,0.22); border-radius: 12px;
+    transition: all 0.25s cubic-bezier(0.2, 0.9, 0.3, 1);
+    cursor: default;
+  }
+  .card:hover {
+    border-color: rgba(168,85,247,0.5);
+    transform: translateY(-3px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5), 0 0 20px rgba(168,85,247,0.15);
+  }
+
+  .card-icon-wrapper {
+    width: 64px; height: 64px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card-icon-wrapper canvas { width: 100%; height: 100%; }
+
+  .card-info { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  
+  .card-header { display: flex; align-items: center; justify-content: space-between; }
+  .card-name { font-family: 'Michroma', sans-serif; font-size: 16px; color: #fff; }
+  
+  .card-stats { display: flex; gap: 8px; align-items: center; font-size: 12px; font-weight: 700; }
+  .stat-hp { color: #fca5a5; }
+  .stat-cost { color: #fbbf24; }
+  .stat-cost::before { content: '◆'; font-size: 10px; margin-right: 2px; }
+
+  .card-tag {
+    align-self: flex-start; padding: 2px 8px; border-radius: 4px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+    background: rgba(148,163,184,0.15); color: #cbd5e1; margin-bottom: 4px;
+  }
+
+  .card-desc {
+    font-size: 13px; line-height: 1.5; color: #94a3b8; margin-top: 4px;
+  }
+
+  @media (max-width: 400px) {
+    .grid { grid-template-columns: 1fr; }
+    .card { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+<div class="vignette"></div>
+
+<div class="topbar">
+  <button class="back-btn" id="backBtn">← 返回</button>
+  <!-- ★ 标题修改为 图鉴 -->
+  <div class="mode-title">图鉴</div>
+  <div style="width: 80px;"></div>
+</div>
+
+<div class="tabs-container">
+  <div class="tabs" id="tabsBar"></div>
+</div>
+
+<div class="codex-content">
+  <div class="grid" id="gridContainer"></div>
+</div>
+
+<script src="js/util.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/pieces.js"></script>
+<script src="js/starfield.js"></script>
+<script src="js/save.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  const CODEX_DATA = Object.values(SL.PIECE_TYPES).map(p => ({
+    id: p.id, name: p.name, cost: p.cost, maxHp: p.maxHp, category: p.category, desc: p.desc
+  }));
+
+  const CATEGORIES = ['全部', ...SL.CATEGORY_ORDER];
+
+  const C = { p1: '#3b82f6', p1d: '#1e40af', p1l: '#93c5fd' };
+
+
+  const tabsBar = document.getElementById('tabsBar');
+  const gridContainer = document.getElementById('gridContainer');
+  let currentCategory = '全部';
+
+  function renderTabs() {
+    tabsBar.innerHTML = '';
+    CATEGORIES.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.className = 'tab-btn' + (cat === currentCategory ? ' active' : '');
+      btn.textContent = cat === '全部' ? '全部' : SL.CATEGORIES[cat].name;
+      btn.onclick = () => { currentCategory = cat; renderTabs(); renderGrid(); };
+      tabsBar.appendChild(btn);
+    });
+  }
+
+  function renderGrid() {
+    gridContainer.innerHTML = '';
+    const filtered = currentCategory === '全部' ? CODEX_DATA : CODEX_DATA.filter(item => item.category === currentCategory);
+
+    filtered.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'card';
+
+      const iconWrapper = document.createElement('div');
+      iconWrapper.className = 'card-icon-wrapper';
+      const canvas = document.createElement('canvas');
+      iconWrapper.appendChild(canvas);
+      SL.drawCodexIcon(canvas, item.id);
+
+      const info = document.createElement('div');
+      info.className = 'card-info';
+
+      const header = document.createElement('div');
+      header.className = 'card-header';
+      const name = document.createElement('span');
+      name.className = 'card-name';
+      name.textContent = item.name;
+
+      const stats = document.createElement('div');
+      stats.className = 'card-stats';
+      if (item.maxHp > 0) {
+        const hp = document.createElement('span'); hp.className = 'stat-hp'; hp.textContent = `HP ${item.maxHp}`; stats.appendChild(hp);
+      }
+      if (item.cost > 0) {
+        const cost = document.createElement('span'); cost.className = 'stat-cost'; cost.textContent = item.cost; stats.appendChild(cost);
+      }
+
+      header.appendChild(name); header.appendChild(stats);
+
+      const tag = document.createElement('span');
+      tag.className = 'card-tag'; tag.textContent = SL.CATEGORIES[item.category].name;
+
+      const desc = document.createElement('div');
+      desc.className = 'card-desc'; desc.textContent = item.desc;
+
+      info.appendChild(header); info.appendChild(tag); info.appendChild(desc);
+      card.appendChild(iconWrapper); card.appendChild(info);
+      gridContainer.appendChild(card);
+    });
+  }
+
+  document.getElementById('backBtn').onclick = () => { window.location.href = 'index.html'; };
+
+  const starfield = document.getElementById('starfield');
+  SL.initStarfield(starfield, { count: 160, mode: 'simple', bg: '#05050d' });
+
+  renderTabs(); renderGrid();
+})();
+</script>
+</body>
+</html>

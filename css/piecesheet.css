@@ -1,0 +1,232 @@
+/* Spartlle 共享样式：棋子选择条（.ps-*）+ 一条固定底栏（.dock-*）。
+   1-1 / 1-2 / game 三个页面共用，避免三份各写各的、移动端表现不一致。
+
+   用法：<link rel="stylesheet" href="css/piecesheet.css">
+   结构：<div class="ps-sheet"> 由 SL.piecesheet.renderSheet 填充 <button class="ps-btn"> */
+
+:root {
+  --ps-bg: rgba(10, 14, 28, 0.96);
+  --ps-border: rgba(148, 163, 184, 0.28);
+  --ps-border-hot: #fbbf24;
+  --ps-text: #e2e8f0;
+  --ps-dim: #94a3b8;
+  --ps-gold: #fbbf24;
+  --ps-safe-b: env(safe-area-inset-bottom, 0px);
+
+  /* 底栏高度：由各页面按需覆盖。fitCanvas 会读这个值给棋盘留位置。 */
+  --dock-h: 120px;
+}
+
+/* ---------------- 棋子条 ---------------- */
+.ps-sheet {
+  display: grid;
+  grid-template-columns: repeat(var(--ps-cols, 6), minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+.ps-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 5px 3px 4px;
+  min-height: 66px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.9) 0%, rgba(8, 12, 24, 0.97) 100%);
+  border: 1.5px solid var(--ps-border);
+  border-radius: 9px;
+  color: var(--ps-text);
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  overflow: hidden;
+  transition: border-color 0.16s, background 0.16s, transform 0.16s;
+}
+
+.ps-btn:active { transform: translateY(1px) scale(0.985); }
+
+.ps-btn.active {
+  border-color: var(--ps-border-hot);
+  background: linear-gradient(180deg, rgba(120, 53, 15, 0.45) 0%, rgba(60, 25, 10, 0.97) 100%);
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.35);
+}
+
+.ps-btn:disabled,
+.ps-btn.ps-poor,
+.ps-btn.ps-locked {
+  opacity: 0.38;
+  filter: grayscale(0.55);
+}
+
+.ps-icon {
+  width: 26px;
+  height: 26px;
+  display: block;
+  flex-shrink: 0;
+}
+
+.ps-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+  min-width: 0;
+  width: 100%;
+}
+
+.ps-name {
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.ps-cost {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ps-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.ps-cost::before { content: '◆'; font-size: 8px; margin-right: 1px; }
+
+/* ---------------- 棋子说明条 ---------------- */
+/* 说明贴在棋子条上方，永远不盖住棋盘：它是底栏的一部分，不是浮层。 */
+.ps-desc {
+  display: none;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(251, 191, 36, 0.32);
+}
+
+.ps-desc.show { display: flex; }
+
+.ps-desc-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.ps-desc-body { min-width: 0; flex: 1; }
+
+.ps-desc-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fde68a;
+  line-height: 1.25;
+}
+
+.ps-desc-tag {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ps-dim);
+  letter-spacing: 0.02em;
+}
+
+.ps-desc-text {
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #cbd5e1;
+  max-height: 46px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ---------------- 底栏 ---------------- */
+.dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px calc(8px + var(--ps-safe-b));
+  background: linear-gradient(0deg, rgba(5, 5, 13, 0.99) 0%, rgba(5, 5, 13, 0.88) 70%, rgba(5, 5, 13, 0) 100%);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.dock-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  max-width: 720px;
+}
+
+.dock-aux {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.dock-aux .ps-btn,
+.dock-aux button {
+  min-height: 62px;
+  padding: 4px 10px;
+  border-radius: 9px;
+  border: 1.5px solid var(--ps-border);
+  background: rgba(15, 23, 42, 0.88);
+  color: var(--ps-dim);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.dock-aux button:active { transform: translateY(1px); }
+.dock-aux button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* 窄屏：把「跳过」这类单按钮压扁一些 */
+@media (max-width: 480px) {
+  .dock-aux button { min-height: 62px; padding: 4px 8px; font-size: 10px; writing-mode: vertical-rl; letter-spacing: 0.12em; }
+}
+
+/* 矮屏（横屏手机）：图标缩小，保证棋盘不被挤没 */
+@media (max-height: 460px) {
+  .ps-btn { min-height: 56px; padding: 4px 2px 3px; }
+  .ps-icon { width: 22px; height: 22px; }
+  .ps-name { font-size: 10px; }
+  .ps-desc.show { padding: 4px 8px; }
+  .ps-desc-text { font-size: 11px; max-height: 34px; }
+  .dock-aux button { min-height: 56px; }
+}
+
+/* 宽屏：图标大一点，名称可以显示得更从容 */
+@media (min-width: 700px) {
+  .ps-icon { width: 34px; height: 34px; }
+  .ps-btn { min-height: 78px; }
+  .ps-name { font-size: 13px; }
+  .ps-cost { font-size: 11px; }
+  .dock-aux button { min-height: 78px; font-size: 12px; }
+}
+
+/* 高屏（普通手机竖屏）：棋子按钮放大到拇指好按的尺寸 */
+@media (min-height: 700px) {
+  .ps-btn { min-height: 82px; padding: 8px 4px 6px; }
+  .ps-icon { width: 34px; height: 34px; }
+  .ps-name { font-size: 13px; }
+  .ps-cost { font-size: 11px; }
+  .dock-aux button { min-height: 82px; }
+}

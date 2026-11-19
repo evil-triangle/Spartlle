@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Spartlle</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,26 +11,12 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
     width: 100%; height: 100%;
-    overflow: hidden;
-    background: #05050d;
+    overflow: hidden; background: #05050d;
     font-family: 'Rajdhani', -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    user-select: none;
+    user-select: none; touch-action: none;
   }
 
-  #starfield {
-    position: fixed; inset: 0;
-    display: block;
-    z-index: 0;
-  }
-
-  .vignette {
-    position: fixed; inset: 0;
-    background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.88) 100%);
-    pointer-events: none;
-    z-index: 1;
-  }
-
-  /* 极淡的网格，增强科技感 */
+  #starfield { position: fixed; inset: 0; display: block; z-index: 0; }
   .grid-overlay {
     position: fixed; inset: 0;
     background-image:
@@ -39,237 +25,99 @@
     background-size: 60px 60px;
     mask-image: radial-gradient(ellipse at center, black 20%, transparent 70%);
     -webkit-mask-image: radial-gradient(ellipse at center, black 20%, transparent 70%);
-    pointer-events: none;
-    z-index: 1;
+    pointer-events: none; z-index: 1;
+  }
+  .vignette {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.88) 100%);
+    pointer-events: none; z-index: 1;
   }
 
   .menu {
-    position: relative;
-    z-index: 2;
+    position: relative; z-index: 2;
     width: 100%; height: 100%;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    gap: 9vh;
-    padding: 30px;
+    gap: 8vh; padding: 20px;
   }
 
-  /* ============ 标题 ============ */
-  .title-wrap {
-    position: relative;
-    display: inline-block;
-  }
+  .title-wrap { position: relative; display: inline-block; text-align: center; }
 
   .title {
     font-family: 'Michroma', 'Rajdhani', sans-serif;
     font-weight: 400;
-    font-size: clamp(44px, 10.5vw, 124px);
-    letter-spacing: 0.12em;
-    line-height: 1;
-    margin: 0;
-    padding: 0 0.06em 0.04em 0.12em;   /* 修正 letter-spacing 造成的视觉偏移 */
+    font-size: clamp(36px, 10vw, 100px);
+    letter-spacing: 0.12em; line-height: 1; margin: 0;
+    padding: 0 0.06em 0.04em 0.12em;
 
-    background: linear-gradient(
-      100deg,
-      #cbd5e1 0%,
-      #ffffff 25%,
-      #ffffff 38%,
-      #bae6fd 47%,
-      #ffffff 56%,
-      #ffffff 72%,
-      #cbd5e1 100%
-    );
+    background: linear-gradient(100deg, #cbd5e1 0%, #ffffff 25%, #ffffff 38%, #bae6fd 47%, #ffffff 56%, #ffffff 72%, #cbd5e1 100%);
     background-size: 220% 100%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-
-    filter:
-      drop-shadow(0 0 6px rgba(125, 211, 252, 1))
-      drop-shadow(0 0 18px rgba(56, 189, 248, 0.85))
-      drop-shadow(0 0 44px rgba(2, 132, 199, 0.55))
-      drop-shadow(0 0 90px rgba(3, 105, 161, 0.35));
-
-    animation:
-      titleSweep 3.6s linear infinite,
-      titleIn 1.4s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 6px rgba(125, 211, 252, 1)) drop-shadow(0 0 18px rgba(56, 189, 248, 0.85)) drop-shadow(0 0 44px rgba(2, 132, 199, 0.55));
+    animation: titleSweep 3.6s linear infinite, titleIn 1.4s cubic-bezier(0.2, 0.9, 0.3, 1) both;
   }
 
-  /* 扫光流淌 */
-  @keyframes titleSweep {
-    0%   { background-position: 150% 0; }
-    100% { background-position: -50% 0; }
-  }
-
-  /* 入场：字距收拢 + 模糊聚焦 */
+  @keyframes titleSweep { 0% { background-position: 150% 0; } 100% { background-position: -50% 0; } }
   @keyframes titleIn {
-    0% {
-      letter-spacing: 0.55em;
-      opacity: 0;
-      filter:
-        drop-shadow(0 0 6px rgba(125, 211, 252, 1))
-        drop-shadow(0 0 18px rgba(56, 189, 248, 0.85))
-        drop-shadow(0 0 44px rgba(2, 132, 199, 0.55))
-        drop-shadow(0 0 90px rgba(3, 105, 161, 0.35))
-        blur(16px);
-    }
-    60% {
-      opacity: 1;
-    }
-    100% {
-      letter-spacing: 0.12em;
-      opacity: 1;
-      filter:
-        drop-shadow(0 0 6px rgba(125, 211, 252, 1))
-        drop-shadow(0 0 18px rgba(56, 189, 248, 0.85))
-        drop-shadow(0 0 44px rgba(2, 132, 199, 0.55))
-        drop-shadow(0 0 90px rgba(3, 105, 161, 0.35))
-        blur(0);
-    }
+    0% { letter-spacing: 0.55em; opacity: 0; filter: blur(16px) drop-shadow(0 0 6px rgba(125,211,252,1)); }
+    60% { opacity: 1; }
+    100% { letter-spacing: 0.12em; opacity: 1; filter: blur(0) drop-shadow(0 0 6px rgba(125,211,252,1)) drop-shadow(0 0 18px rgba(56,189,248,0.85)); }
   }
 
-  /* 标题下的青色横线，两侧淡出 */
   .title-rule {
-    width: min(560px, 78vw);
-    height: 1px;
-    margin: 22px auto 0;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(34, 211, 238, 0.8) 25%,
-      rgba(125, 211, 252, 1) 50%,
-      rgba(34, 211, 238, 0.8) 75%,
-      transparent 100%
-    );
-    box-shadow:
-      0 0 8px rgba(34, 211, 238, 0.8),
-      0 0 18px rgba(34, 211, 238, 0.5);
+    width: min(560px, 78vw); height: 1px; margin: 22px auto 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(34,211,238,0.8) 25%, rgba(125,211,252,1) 50%, rgba(34,211,238,0.8) 75%, transparent 100%);
+    box-shadow: 0 0 8px rgba(34,211,238,0.8), 0 0 18px rgba(34,211,238,0.5);
     animation: rulePulse 2.8s ease-in-out infinite;
   }
+  @keyframes rulePulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
 
-  @keyframes rulePulse {
-    0%, 100% { opacity: 0.6; }
-    50%      { opacity: 1; }
-  }
-
-  /* ============ 按钮 ============ */
   .buttons {
-    display: flex; flex-direction: column;
-    gap: 16px;
-    width: 100%;
-    max-width: 400px;
+    display: flex; flex-direction: column; gap: 12px;
+    width: 100%; max-width: 320px;
   }
 
   .menu-btn {
-    position: relative;
-    padding: 18px 24px;
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 19px;
-    font-weight: 700;
-    letter-spacing: 0.32em;
-    text-indent: 0.32em;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.24s cubic-bezier(0.2, 0.9, 0.3, 1);
-    background:
-      linear-gradient(180deg, rgba(15, 23, 42, 0.85) 0%, rgba(8, 12, 24, 0.95) 100%);
-    color: #94a3b8;
-    border: 1px solid rgba(148, 163, 184, 0.22);
-    text-align: center;
-    overflow: hidden;
-    outline: none;
-    backdrop-filter: blur(6px);
+    position: relative; padding: 14px 20px;
+    font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: 700;
+    letter-spacing: 0.25em; text-indent: 0.25em;
+    border-radius: 4px; cursor: pointer; transition: all 0.24s cubic-bezier(0.2, 0.9, 0.3, 1);
+    background: linear-gradient(180deg, rgba(15,23,42,0.85) 0%, rgba(8,12,24,0.95) 100%);
+    color: #94a3b8; border: 1px solid rgba(148,163,184,0.22); text-align: center; overflow: hidden; outline: none;
   }
 
-  /* 按钮左右两端的装饰短线 */
-  .menu-btn::before,
-  .menu-btn::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    width: 14px;
-    height: 1px;
-    background: var(--accent, #60a5fa);
-    transform: translateY(-50%) scaleX(0);
-    transform-origin: center;
-    transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.3s;
+  .menu-btn::before, .menu-btn::after {
+    content: ''; position: absolute; top: 50%; width: 14px; height: 1px;
+    background: var(--accent, #60a5fa); transform: translateY(-50%) scaleX(0); transition: transform 0.3s;
     box-shadow: 0 0 8px var(--accent, #60a5fa);
   }
   .menu-btn::before { left: 12px; }
-  .menu-btn::after  { right: 12px; }
+  .menu-btn::after { right: 12px; }
 
-  .menu-btn:hover::before,
-  .menu-btn:hover::after,
-  .menu-btn:focus-visible::before,
-  .menu-btn:focus-visible::after {
-    transform: translateY(-50%) scaleX(1);
-  }
+  .menu-btn:hover::before, .menu-btn:hover::after { transform: translateY(-50%) scaleX(1); }
 
-  .menu-btn:hover,
-  .menu-btn:focus-visible {
-    color: #ffffff;
-    border-color: var(--accent, #60a5fa);
-    transform: translateY(-2px);
-    background:
-      linear-gradient(180deg, rgba(20, 30, 55, 0.9) 0%, rgba(10, 16, 32, 0.98) 100%);
-    box-shadow:
-      0 0 0 1px var(--accent, #60a5fa),
-      0 0 22px var(--accent-glow, rgba(96, 165, 250, 0.5)),
-      0 12px 28px rgba(0, 0, 0, 0.6),
-      inset 0 0 24px var(--accent-inner, rgba(96, 165, 250, 0.12));
+  .menu-btn:hover {
+    color: #fff; border-color: var(--accent, #60a5fa); transform: translateY(-2px);
+    box-shadow: 0 0 0 1px var(--accent, #60a5fa), 0 0 22px var(--accent-glow, rgba(96,165,250,0.5)), 0 8px 20px rgba(0,0,0,0.5);
   }
 
-  .menu-btn:active {
-    transform: translateY(0) scale(0.985);
-  }
+  .menu-btn[data-mode="adventure"] { --accent: #fbbf24; --accent-glow: rgba(251,191,36,0.55); }
+  .menu-btn[data-mode="defense"] { --accent: #f87171; --accent-glow: rgba(248,113,113,0.55); }
+  .menu-btn[data-mode="free"] { --accent: #60a5fa; --accent-glow: rgba(96,165,250,0.6); }
+  .menu-btn[data-mode="codex"] { --accent: #a855f7; --accent-glow: rgba(168,85,247,0.6); }
 
-  .menu-btn[data-mode="adventure"] {
-    --accent: #fbbf24;
-    --accent-glow: rgba(251, 191, 36, 0.55);
-    --accent-inner: rgba(251, 191, 36, 0.12);
-  }
-  .menu-btn[data-mode="defense"] {
-    --accent: #f87171;
-    --accent-glow: rgba(248, 113, 113, 0.55);
-    --accent-inner: rgba(248, 113, 113, 0.12);
-  }
-  .menu-btn[data-mode="free"] {
-    --accent: #60a5fa;
-    --accent-glow: rgba(96, 165, 250, 0.6);
-    --accent-inner: rgba(96, 165, 250, 0.15);
-  }
-
-  /* ============ Toast ============ */
   .toast {
-    position: fixed;
-    left: 50%; bottom: 8vh;
-    transform: translateX(-50%) translateY(24px);
-    padding: 12px 30px;
-    border-radius: 4px;
-    background: rgba(8, 12, 24, 0.96);
-    border: 1px solid rgba(96, 165, 250, 0.4);
-    color: #e2e8f0;
-    font-size: 14px;
-    letter-spacing: 0.14em;
-    font-family: 'Rajdhani', sans-serif;
-    font-weight: 600;
-    opacity: 0;
-    pointer-events: none;
-    transition: all 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
-    z-index: 10;
-    backdrop-filter: blur(10px);
-    white-space: nowrap;
-    box-shadow: 0 0 20px rgba(96, 165, 250, 0.25);
+    position: fixed; left: 50%; bottom: 6vh; transform: translateX(-50%) translateY(24px);
+    padding: 10px 24px; border-radius: 4px; background: rgba(8,12,24,0.96);
+    border: 1px solid rgba(96,165,250,0.4); color: #e2e8f0; font-size: 13px;
+    letter-spacing: 0.1em; font-weight: 600; opacity: 0; pointer-events: none; transition: all 0.32s; z-index: 10; backdrop-filter: blur(10px);
   }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast .highlight { color: #7dd3fc; font-weight: 700; }
 
-  .toast.show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-
-  .toast .highlight {
-    color: #7dd3fc;
-    font-weight: 700;
-    text-shadow: 0 0 10px rgba(125, 211, 252, 0.8);
+  @media (min-height: 800px) {
+    .menu { gap: 10vh; }
+    .menu-btn { padding: 18px 24px; font-size: 18px; }
   }
 </style>
 </head>
@@ -289,225 +137,40 @@
     <button class="menu-btn" data-mode="adventure">冒险模式</button>
     <button class="menu-btn" data-mode="defense">防御敌袭</button>
     <button class="menu-btn" data-mode="free">自由对战</button>
+    <button class="menu-btn" data-mode="codex">棋子图鉴</button>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
+<script src="js/util.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/pieces.js"></script>
+<script src="js/starfield.js"></script>
+<script src="js/save.js"></script>
 <script>
 (() => {
   'use strict';
 
-  // ==================== 星空 ====================
-  const canvas = document.getElementById('starfield');
-  const ctx = canvas.getContext('2d');
-  let W = 0, H = 0, DPR = 1;
+  SL.initStarfield(document.getElementById('starfield'), { count: 280, mode: 'layered', twinkle: true, shooting: true, hue: true, layerMid: 0.85 });
 
-  function resize() {
-    DPR = Math.min(window.devicePixelRatio || 1, 2);
-    W = window.innerWidth;
-    H = window.innerHeight;
-    canvas.width = W * DPR;
-    canvas.height = H * DPR;
-    canvas.style.width = W + 'px';
-    canvas.style.height = H + 'px';
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  }
-
-  const stars = [];
-  const NUM_STARS = 280;
-
-  function initStars() {
-    stars.length = 0;
-    for (let i = 0; i < NUM_STARS; i++) {
-      const r = Math.random();
-      const layer = r < 0.5 ? 0 : r < 0.85 ? 1 : 2;
-
-      const size =
-        layer === 0 ? 0.3 + Math.random() * 0.5 :
-        layer === 1 ? 0.6 + Math.random() * 0.9 :
-                      1.2 + Math.random() * 1.5;
-
-      const speed =
-        layer === 0 ? 5 + Math.random() * 6 :
-        layer === 1 ? 12 + Math.random() * 10 :
-                      22 + Math.random() * 16;
-
-      let hue = null;
-      const tint = Math.random();
-      if (tint < 0.08) hue = 210;
-      else if (tint < 0.13) hue = 45;
-      else if (tint < 0.16) hue = 280;
-
-      stars.push({
-        x: Math.random() * W,
-        y: Math.random() * H,
-        r: size,
-        vy: speed,
-        vx: speed * 0.08 * (Math.random() < 0.5 ? -1 : 1),
-        twinkle: Math.random() * Math.PI * 2,
-        twinkleSpeed: 0.015 + Math.random() * 0.04,
-        baseAlpha: 0.4 + Math.random() * 0.5,
-        hue,
-        layer,
-      });
-    }
-  }
-
-  const shootingStars = [];
-  function spawnShootingStar() {
-    const fromLeft = Math.random() < 0.5;
-    shootingStars.push({
-      x: fromLeft ? -50 : W + 50,
-      y: Math.random() * H * 0.6,
-      vx: fromLeft ? 500 + Math.random() * 300 : -500 - Math.random() * 300,
-      vy: 200 + Math.random() * 150,
-      life: 0,
-      maxLife: 1.2,
-      len: 80 + Math.random() * 60,
-    });
-  }
-
-  let lastTime = performance.now();
-  let shootingTimer = 0;
-  let nextShootingAt = 3 + Math.random() * 5;
-
-  function draw(now) {
-    const dt = Math.min((now - lastTime) / 1000, 0.1);
-    lastTime = now;
-
-    const bgGrad = ctx.createRadialGradient(
-      W * 0.5, H * 0.4, 0,
-      W * 0.5, H * 0.4, Math.max(W, H) * 0.8
-    );
-    bgGrad.addColorStop(0, '#0a0a1f');
-    bgGrad.addColorStop(0.5, '#070712');
-    bgGrad.addColorStop(1, '#030308');
-    ctx.fillStyle = bgGrad;
-    ctx.fillRect(0, 0, W, H);
-
-    for (const s of stars) {
-      s.twinkle += s.twinkleSpeed * 60 * dt;
-      s.x += s.vx * dt;
-      s.y += s.vy * dt;
-
-      if (s.y > H + 5) { s.y = -5; s.x = Math.random() * W; }
-      if (s.x > W + 5) s.x = -5;
-      if (s.x < -5) s.x = W + 5;
-
-      const flicker = 0.75 + 0.25 * Math.sin(s.twinkle);
-      const alpha = s.baseAlpha * flicker;
-
-      if (s.layer === 2 && s.r > 1.4) {
-        ctx.save();
-        ctx.globalAlpha = alpha * 0.5;
-        ctx.shadowColor = s.hue ? `hsl(${s.hue}, 80%, 70%)` : '#ffffff';
-        ctx.shadowBlur = 10;
-        ctx.fillStyle = s.hue ? `hsl(${s.hue}, 80%, 80%)` : '#ffffff';
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.r * 0.6, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = s.hue ? `hsl(${s.hue}, 70%, 85%)` : '#ffffff';
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
-
-    shootingTimer += dt;
-    if (shootingTimer > nextShootingAt) {
-      spawnShootingStar();
-      shootingTimer = 0;
-      nextShootingAt = 4 + Math.random() * 7;
-    }
-
-    for (let i = shootingStars.length - 1; i >= 0; i--) {
-      const ss = shootingStars[i];
-      ss.life += dt;
-      ss.x += ss.vx * dt;
-      ss.y += ss.vy * dt;
-
-      if (ss.life > ss.maxLife) {
-        shootingStars.splice(i, 1);
-        continue;
-      }
-
-      const p = ss.life / ss.maxLife;
-      const alpha = Math.sin(p * Math.PI) * 0.9;
-
-      const dir = Math.hypot(ss.vx, ss.vy);
-      const nx = -ss.vx / dir;
-      const ny = -ss.vy / dir;
-
-      const tailX = ss.x + nx * ss.len;
-      const tailY = ss.y + ny * ss.len;
-
-      const grad = ctx.createLinearGradient(tailX, tailY, ss.x, ss.y);
-      grad.addColorStop(0, 'rgba(255, 255, 255, 0)');
-      grad.addColorStop(0.7, `rgba(200, 220, 255, ${alpha * 0.7})`);
-      grad.addColorStop(1, `rgba(255, 255, 255, ${alpha})`);
-
-      ctx.strokeStyle = grad;
-      ctx.lineWidth = 2;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(tailX, tailY);
-      ctx.lineTo(ss.x, ss.y);
-      ctx.stroke();
-
-      ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-      ctx.beginPath();
-      ctx.arc(ss.x, ss.y, 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    requestAnimationFrame(draw);
-  }
-
-  // ==================== 按钮交互 ====================
   const toast = document.getElementById('toast');
   let toastTimer = null;
-
   function showToast(html) {
-    toast.innerHTML = html;
-    toast.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
+    toast.innerHTML = html; toast.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
   }
 
   document.querySelectorAll('.menu-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const mode = btn.dataset.mode;
-      if (mode === 'adventure') {
-        window.location.href = 'adventure.html';
-      } else if (mode === 'defense') {
-        showToast('<span class="highlight">防御敌袭</span> · 开发中');
-      } else if (mode === 'free') {
-        window.location.href = 'game.html';
-      }
+      if (mode === 'adventure') window.location.href = 'adventure.html';
+      else if (mode === 'defense') showToast('<span class="highlight">防御敌袭</span> · 开发中');
+      else if (mode === 'free') window.location.href = 'game.html';
+      else if (mode === 'codex') window.location.href = 'codex.html';
     });
   });
 
-  document.addEventListener('keydown', (e) => {
-    if (e.key === '1') document.querySelector('[data-mode="adventure"]').click();
-    if (e.key === '2') document.querySelector('[data-mode="defense"]').click();
-    if (e.key === '3') document.querySelector('[data-mode="free"]').click();
-  });
-
-  // ==================== 启动 ====================
-  resize();
-  initStars();
-
-  window.addEventListener('resize', () => {
-    resize();
-    initStars();
-  });
-
-  requestAnimationFrame(draw);
 })();
 </script>
 </body>

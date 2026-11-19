@@ -6,25 +6,49 @@
 <title>棋盘塔防 · 对抗模式</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  /* 关掉 html 的滚动传播：否则 body 的 overflow-y:auto 会被规范传播给 viewport，
+     实际滚动的变成 documentElement，body.scrollTop 恒为 0，容器不明确。 */
+  html { overflow: hidden; }
   body {
     background: radial-gradient(circle at 50% 30%, #12122a 0%, #05050d 80%);
     color: #e0e0e0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    min-height: 100vh;
+    min-height: 100%;
+    /* body 是唯一的纵向滚动容器：棋盘尺寸固定，底栏展开时不缩小棋盘，
+       被盖住的部分靠上下滑动移出来看。滚动留白 --pad-bottom 由 layoutChrome 写入。 */
+    display: block;
+    overflow-y: auto; overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    /* 不留 padding：滚动留白放在 .content-wrap 上。
+       若加在 body 上，min-height:100% 会把它扣掉，滚动就不能生效。 */
+    padding: 0;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* 有余量时把 HUD + 棋盘 + 提示整组居中；内容超高时容器被内容撑开，顶部不会被裁掉 */
+  .content-wrap {
+    min-height: 100%;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    gap: 10px; padding: 14px 14px 130px;
-    user-select: none;
+    gap: 8px;
+    /* 底部留白 = 底栏当前高 + 余量，保证能把棋盘下沿滚到底栏上方。--pad-bottom 由 layoutChrome 写入 */
+    padding: 8px 12px calc(var(--pad-bottom, 160px) + 8px);
   }
 
   .hud {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 16px; border-radius: 12px;
+    padding: 8px 12px; border-radius: 12px;
     background: rgba(20,20,40,0.7);
     border: 1px solid #2a2a4e;
-    width: 780px;
+    /* 宽度跟着棋盘走，但给个下限：面板展开把棋盘压小时，HUD 不至于挤成一团 */
+    width: min(100%, max(var(--hud-size, 780px), 340px));
+    flex-shrink: 0;
+    gap: 8px;
   }
-  .player-panel { display: flex; align-items: center; gap: 8px; }
+  .player-panel { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
   .dot.p1 { background: #3b82f6; box-shadow: 0 0 10px #3b82f6; }
   .dot.p2 { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
@@ -39,8 +63,8 @@
   }
   .stat-icon { width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .stat-icon svg { width: 100%; height: 100%; display: block; }
-  .stat-value { font-weight: 800; font-size: 15px; min-width: 16px; text-align: center; line-height: 1; }
-  .stat-label { font-size: 10px; color: #6b6b8a; letter-spacing: 0.3px; line-height: 1; }
+  .stat-value { font-weight: 800; font-size: 15px; min-width: 16px; text-align: center; line-height: 1; white-space: nowrap; }
+  .stat-label { font-size: 10px; color: #6b6b8a; letter-spacing: 0.3px; line-height: 1; white-space: nowrap; }
 
   .stat-box.meteor-box { border-color: rgba(251,191,36,0.30); background: rgba(251,191,36,0.05); }
   .stat-box.meteor-box .stat-icon { color: #fbbf24; }
@@ -68,11 +92,12 @@
   .stat-box.beacon-box.active .stat-value { color: #5eead4; }
   .stat-box.beacon-box.active .stat-label { color: #2dd4bf; }
 
-  .turn-wrap { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .turn-wrap { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; }
   .turn {
     padding: 4px 12px; border-radius: 999px;
     background: #1e3a8a; color: #dbeafe;
     font-weight: 700; font-size: 13px; letter-spacing: 0.5px;
+    white-space: nowrap;
   }
   .turn.p2 { background: #7f1d1d; color: #fee2e2; }
 
@@ -99,9 +124,10 @@
   canvas {
     display: block; border-radius: 10px;
     box-shadow: 0 0 40px rgba(0,0,0,0.9), 0 0 0 1px #2a2a4e;
-    cursor: pointer;
+    cursor: pointer; touch-action: manipulation; flex-shrink: 0;
   }
-  .hint { font-size: 12px; color: #6b6b8a; text-align: center; min-height: 16px; }
+  .hint { font-size: 12px; color: #6b6b8a; text-align: center; min-height: 16px; max-width: 92vw; }
+  .hint.touch { display: none; }
 
   .turn-banner {
     position: fixed; inset: 0;
@@ -222,26 +248,32 @@
     position: fixed;
     left: 0; right: 0; bottom: 0;
     display: flex; flex-direction: column;
-    align-items: center; gap: 10px; padding: 12px;
+    align-items: center; gap: 6px;
+    padding: 6px 10px calc(6px + env(safe-area-inset-bottom, 0px));
     pointer-events: none; z-index: 5;
+    background: linear-gradient(0deg, rgba(5,5,13,0.98) 0%, rgba(5,5,13,0.86) 68%, rgba(5,5,13,0) 100%);
+    /* 底栏自身不盖棋盘：棋盘尺寸由 fitCanvas 扣除这里的实际高度 */
   }
   .piece-panel {
     pointer-events: auto;
-    display: none; gap: 12px; padding: 12px;
+    display: none; gap: 8px; padding: 8px;
     border-radius: 14px;
-    background: rgba(15,15,30,0.94);
+    background: rgba(15,15,30,0.96);
     border: 1px solid #2a2a4e;
     box-shadow: 0 -10px 40px rgba(0,0,0,0.6);
     backdrop-filter: blur(8px);
-    flex-wrap: wrap; justify-content: center; max-width: 90vw;
+    flex-wrap: wrap; justify-content: center;
+    max-width: min(96vw, 860px);
+    max-height: 42vh; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .piece-panel.show { display: flex; }
   .piece-card {
-    width: 260px; padding: 12px;
+    width: 232px; padding: 9px 10px;
     border-radius: 12px;
     background: linear-gradient(180deg, #1a1a2e 0%, #15152a 100%);
     border: 1px solid #333355;
-    display: flex; gap: 12px;
+    display: flex; gap: 9px;
     transition: border-color 0.15s, transform 0.15s;
   }
   .piece-card:hover { border-color: #4a4a7a; transform: translateY(-2px); }
@@ -267,8 +299,8 @@
     }
   }
 
-  .card-icon { width: 56px; height: 56px; flex-shrink: 0; display: block; }
-  .card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  .card-icon { width: 44px; height: 44px; flex-shrink: 0; display: block; }
+  .card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
   .card-name {
     font-size: 15px; font-weight: 700; color: #fff;
     display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
@@ -288,7 +320,10 @@
     0%, 100% { box-shadow: 0 0 6px rgba(251,191,36,0.3); }
     50%      { box-shadow: 0 0 14px rgba(251,191,36,0.7); }
   }
-  .card-desc { font-size: 11px; line-height: 1.5; color: #94a3b8; flex: 1; }
+  .card-desc {
+    font-size: 11px; line-height: 1.45; color: #94a3b8; flex: 1;
+    max-height: 62px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  }
   .card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; }
   .card-cost {
     font-size: 12px; font-weight: 700; color: #fbbf24;
@@ -419,10 +454,84 @@
     background: #1e3a8a; color: white; border: none; font-size: 15px;
     cursor: pointer; font-weight: 600;
   }
+
+  /* ===== 窄屏（手机） ===== */
+  @media (max-width: 640px) {
+    body { padding: 6px 8px; padding-bottom: calc(var(--dock-h, 150px) + 8px); gap: 6px; }
+    .hud { padding: 6px 8px; border-radius: 10px; gap: 4px; }
+    .player-panel { gap: 4px; }
+    .stat-box { padding: 4px 6px; gap: 4px; }
+    .stat-value { font-size: 13px; min-width: 14px; }
+    /* 窄屏优先保数字："陨石/信标"这行文字会挤成竖排，直接隐藏 */
+    .stat-label { display: none; }
+    .turn { font-size: 11px; padding: 3px 8px; letter-spacing: 0; }
+    .hint { font-size: 10.5px; min-height: 0; padding: 0 4px; line-height: 1.3; }
+    .voucher-badge { font-size: 9px; padding: 1px 6px; }
+
+    .piece-panel { gap: 6px; padding: 6px; max-height: 38vh; max-width: calc(100vw - 12px); }
+    .piece-card { width: calc(50vw - 14px); min-width: 150px; padding: 7px 8px; gap: 7px; }
+    .card-icon { width: 34px; height: 34px; }
+    .card-name { font-size: 12.5px; gap: 4px; }
+    .card-tag { font-size: 9px; padding: 0 4px; }
+    .card-desc { font-size: 10.5px; line-height: 1.4; max-height: 46px; }
+    .card-btn { padding: 4px 10px; font-size: 11px; }
+    .card-cost { font-size: 11px; }
+
+    .action-menu { gap: 6px; padding: 7px 8px; flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 12px); }
+    .action-menu-label { font-size: 11px; }
+    .action-btn { padding: 7px 16px; font-size: 12.5px; }
+
+    .cat-bar { gap: 5px; padding: 5px; max-width: calc(100vw - 12px); }
+    .cat-tab { padding: 6px 10px; font-size: 11.5px; gap: 5px; }
+    .cat-emoji { font-size: 13px; }
+    .cat-tab.core-tab .core-status { font-size: 9px; padding: 0 4px; }
+
+    .info-content { width: calc(100vw - 24px); max-height: 80vh; padding: 16px 16px; }
+    .info-header h2 { font-size: 16px; }
+    .info-body { font-size: 12px; }
+    .overlay-content { padding: 26px 24px; width: calc(100vw - 40px); }
+    .overlay-content h1 { font-size: 26px; margin-bottom: 10px; }
+    .banner-title { font-size: 26px; letter-spacing: 2px; }
+    .banner-content { padding: 16px 30px; }
+    .banner-sub { font-size: 13px; }
+  }
+
+  /* ===== 横屏 / 矮屏：竖直空间优先给棋盘 ===== */
+  @media (max-height: 520px) {
+    .hint { display: none; }
+    .hint.touch { display: none; }
+    .hud { padding: 5px 8px; }
+    .voucher-stack { display: none; }
+    /* 矮屏先保数字："陨石/信标"这类标签会把 HUD 挤成一团 */
+    .stat-label { display: none; }
+    .stat-box { padding: 4px 7px; }
+    .turn { font-size: 11px; padding: 3px 9px; letter-spacing: 0; }
+    .piece-card { width: 200px; padding: 6px 8px; }
+    .card-desc { display: none; }
+    /* 矮屏：分类面板横向滑动，避免展开后把棋盘压成一条缝 */
+    .piece-panel {
+      flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+      justify-content: flex-start; max-height: none;
+      max-width: calc(100vw - 16px);
+      -webkit-overflow-scrolling: touch;
+    }
+    .piece-card { width: auto; min-width: 128px; flex: 0 0 auto; align-items: center; }
+    .card-body { gap: 2px; }
+    .card-footer { margin-top: 0; }
+    .cat-tab { padding: 5px 9px; font-size: 11px; }
+    .cat-bar { gap: 4px; padding: 4px; }
+    .bottom-bar { gap: 4px; padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px)); }
+  }
+
+  /* 触屏：鼠标悬停提示没有意义，换成常驻的操作提示 */
+  @media (hover: none) {
+    .hint { font-size: 11px; }
+  }
 </style>
 </head>
 <body>
 
+<div class="content-wrap">
 <div class="hud">
   <div class="player-panel">
     <span class="dot p1"></span>
@@ -468,6 +577,7 @@
 
 <canvas id="board"></canvas>
 <div class="hint" id="hint">选择下方分类，再选择棋子放置；或点击己方棋子行动</div>
+</div><!-- /.content-wrap -->
 
 <div class="turn-banner" id="turnBanner">
   <div class="banner-content" id="bannerContent">
@@ -500,16 +610,23 @@
   </div>
 </div>
 
+<script src="js/util.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/pieces.js"></script>
+<script src="js/starfield.js"></script>
+<script src="js/save.js"></script>
 <script>
 (() => {
   'use strict';
 
-  const CFG = { N: 15, CELL: 52, DPR: Math.min(window.devicePixelRatio || 1, 2) };
+  const CFG = { N: 15, DPR: Math.min(window.devicePixelRatio || 1, 2) };
   const CORE_POS = { col: 7, row: 7 };
   const BEACONS = [
     { col: 0,  row: 14 },
     { col: 14, row: 0  },
   ];
+
+  const CELL = 52; // 逻辑格宽：棋盘内部坐标系固定 15×52=780，显示尺寸由 fitCanvas 缩放
 
   const DIRS8 = [
     { dc: 1, dr: 0 }, { dc: -1, dr: 0 },
@@ -526,103 +643,9 @@
     { dc: -1, dr: 1 }, { dc: -1, dr: -1 },
   ];
 
-  const PIECE_TYPES = {
-    star: {
-      name: '星', category: 'producer',
-      cost: 2, maxHp: 1, kind: 'producer', produce: 2,
-      desc: '每回合开始给你创造2陨石。',
-    },
-    nova: {
-      name: '新星', category: 'producer',
-      cost: 10, maxHp: 1, kind: 'producer', produce: 5,
-      desc: '每回合开始给你带来5陨石。',
-    },
-    archer: {
-      name: '弓箭', category: 'shooter',
-      cost: 12, maxHp: 2, kind: 'shooter',
-      actions: ['shoot'],
-      desc: '玩家可消耗一回合使弓箭沿一个方向发射一个【箭矢类】箭，击中第一个到达的目标，造成1伤害。',
-    },
-    cannon: {
-      name: '星炮', category: 'cannon',
-      cost: 99, maxHp: 3, kind: 'cannon',
-      actions: ['shootCannon'],
-      desc: '可发射【炮弹类】炮弹，碰到星核、信标、棋子、边界墙时爆炸，对爆炸中心造成7伤害，周围8格3【范围伤害】。hp = 3。',
-    },
-    warrior: {
-      name: '勇士', category: 'melee',
-      cost: 16, maxHp: 2, kind: 'melee',
-      attackDamage: 2,
-      move: { dirs: 'ortho', range: 3 },
-      actions: ['attack', 'move'],
-      desc: '可控制他攻击周围8格中的一格，造成2点伤害。也可控制他向一个方向（上下左右）移动1~3格。',
-    },
-    ranger: {
-      name: '游侠', category: 'melee',
-      cost: 60, maxHp: 1, kind: 'melee',
-      raidDamage: 1, raidRange: 2,
-      actions: ['raid'],
-      desc: '每次可移动到5*5范围内任意一格，并对到达点周围8格所有敌方单位造成1个伤害。hp=1。',
-    },
-    // ★ 骑兵
-    cavalry: {
-      name: '骑兵', category: 'melee',
-      cost: 75, maxHp: 3, kind: 'cavalry',
-      chargeRange: 3, chargeDamage: 2,
-      actions: ['charge'],
-      desc: 'hp = 3。一次可向上下左右中的一个方向移动1~3格，到达格不能有敌方棋子，但可以穿过敌方棋子（不可穿己方棋子），并对被穿过的棋子造成2伤害。',
-    },
-    // ★ 无人机
-    drone: {
-      name: '无人机', category: 'cannon',
-      cost: 85, maxHp: 2, kind: 'drone',
-      moveOrthoRange: 3, moveDiagRange: 2,
-      shellStyle: 'drone',
-      shellCenterDamage: 4, shellAdjacentDamage: 1,
-      actions: ['droneMove', 'droneShoot'],
-      desc: 'hp = 2。一次可向上下左右中的一个方向移动1~3格，或斜向移动1~2格。可向八个方向中的一个发射【炮弹】（铁丝网防御对其生效）。炮弹（爆炸逻辑与星炮相同）可对命中目标造成4伤害，8个临格1伤害。',
-    },
-    mage: {
-      name: '普通法师', category: 'summon',
-      cost: 75, maxHp: 2, kind: 'summon',
-      move: { dirs: 'all8', range: 2 },
-      spawnType: 'warrior',
-      actions: ['spawn', 'move'],
-      desc: '可控制他在周围八格中的一空格生成一个勇士。可控制移动。向8个方向中的一个移动1~2格。感受法师的力量！',
-    },
-    wall: {
-      name: '壁垒', category: 'defense',
-      cost: 10, maxHp: 3, kind: 'wall',
-      desc: '坚实的壁垒，hp = 3。用来阻挡敌人的箭矢与去路。',
-    },
-    ironwall: {
-      name: '加固的壁垒', category: 'defense',
-      cost: 30, maxHp: 9, kind: 'wall',
-      desc: '加固的壁垒，hp = 9。加固后是不是抗造多了？',
-    },
-    barbedwire: {
-      name: '铁丝网', category: 'defense',
-      cost: 20, maxHp: 2, kind: 'wire',
-      desc: '箭矢无视它，炮弹打在上面失效。hp = 2。',
-    },
-    wallpack: {
-      name: '快速布墙', category: 'defense',
-      cost: 50, maxHp: 0, kind: 'multiplace',
-      placeType: 'wall', placeCount: 3,
-      desc: '一次布置三个壁垒。',
-    },
-    base: { name: '大本营', category: 'structure', cost: 0, maxHp: 1, kind: 'base' },
-    fort: { name: '堡垒',   category: 'structure', cost: 0, maxHp: 3, kind: 'fort' },
-  };
+  const PIECE_TYPES = SL.PIECE_TYPES;
 
-  const CATEGORIES = {
-    producer: { name: '生产类', emoji: '★', order: 1 },
-    shooter:  { name: '箭矢类', emoji: '➤', order: 2 },
-    cannon:   { name: '星炮类', emoji: '☄', order: 3 },
-    melee:    { name: '近战类', emoji: '⚔', order: 4 },
-    defense:  { name: '防御类', emoji: '▣', order: 5 },
-    summon:   { name: '生成类', emoji: '✦', order: 6 },
-  };
+  const CATEGORIES = SL.CATEGORIES;
 
   const CORE_FUNCTIONS = {
     yield: {
@@ -698,15 +721,15 @@
     return 'empty';
   }
   function cellRect(col, row) {
-    return { x: col*CFG.CELL, y: (CFG.N-1-row)*CFG.CELL, w: CFG.CELL, h: CFG.CELL };
+    return { x: col*CELL, y: (CFG.N-1-row)*CELL, w: CELL, h: CELL };
   }
   function cellCenter(col, row) {
     const r = cellRect(col, row);
     return { x: r.x + r.w/2, y: r.y + r.h/2 };
   }
   function pixelToCell(px, py) {
-    const col = Math.floor(px / CFG.CELL);
-    const row = CFG.N - 1 - Math.floor(py / CFG.CELL);
+    const col = Math.floor(px / CELL);
+    const row = CFG.N - 1 - Math.floor(py / CELL);
     if (col < 0 || col >= CFG.N || row < 0 || row >= CFG.N) return null;
     return { col, row };
   }
@@ -715,12 +738,38 @@
 
   const canvas = document.getElementById('board');
   const ctx = canvas.getContext('2d');
-  const SIZE = CFG.N * CFG.CELL;
-  canvas.width  = SIZE * CFG.DPR;
-  canvas.height = SIZE * CFG.DPR;
-  canvas.style.width  = SIZE + 'px';
-  canvas.style.height = SIZE + 'px';
-  ctx.scale(CFG.DPR, CFG.DPR);
+  const SIZE = CFG.N * CELL;
+
+  // 逻辑坐标始终是 SIZE×SIZE（15×52=780），显示尺寸由 fitCanvas 决定。
+  // 绘制时统一叠加 scale，因此下面所有 cellRect / 半径计算都不用关心缩放。
+  let viewScale = 1;
+
+  // ==================== 尺寸自适应：固定棋盘 + 纵向滚动 ====================
+  // 棋盘边长只由「视口」决定，绝不读 HUD / 底栏的实时高度：
+  // 展开棋子面板 / 操作菜单时棋盘尺寸不会跳动；被底栏盖住的部分靠 body 纵向滚动移出来看。
+  function layoutChrome() {
+    const dock = document.querySelector('.bottom-bar');
+    const dockH = dock ? dock.getBoundingClientRect().height : 120;
+    // 底部滚动留白 = 底栏当前高 + 余量，保证能把棋盘下沿滚到底栏上方
+    document.documentElement.style.setProperty('--pad-bottom', Math.ceil(dockH + 40) + 'px');
+  }
+
+  function fitCanvas() {
+    const availW = Math.max(120, window.innerWidth - 24);
+    const availH = Math.max(120, window.innerHeight - 150);
+    const css = Math.floor(Math.min(availW, availH));
+
+    viewScale = css / SIZE;
+    const dpr = CFG.DPR;
+    canvas.width = Math.round(css * dpr);
+    canvas.height = Math.round(css * dpr);
+    canvas.style.width = css + 'px';
+    canvas.style.height = css + 'px';
+    const root = document.documentElement;
+    root.style.setProperty('--board-size', css + 'px');
+    root.style.setProperty('--hud-size', css + 'px');
+    layoutChrome();
+  }
 
   const state = {
     turn: 1,
@@ -758,20 +807,7 @@
     p.set(key(13,13), { type:'fort', owner:2, hp:3, maxHp:3 });
   }
 
-  function roundRectCtx(c, x, y, w, h, r) {
-    c.beginPath();
-    c.moveTo(x + r, y);
-    c.lineTo(x + w - r, y);
-    c.quadraticCurveTo(x + w, y, x + w, y + r);
-    c.lineTo(x + w, y + h - r);
-    c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    c.lineTo(x + r, y + h);
-    c.quadraticCurveTo(x, y + h, x, y + h - r);
-    c.lineTo(x, y + r);
-    c.quadraticCurveTo(x, y, x + r, y);
-    c.closePath();
-  }
-  const roundRect = (x, y, w, h, r) => roundRectCtx(ctx, x, y, w, h, r);
+  const roundRect = (x, y, w, h, r) => SL.roundRectCtx(ctx, x, y, w, h, r);
 
   function computeOwnerAround(col, row) {
     let p1 = 0, p2 = 0;
@@ -812,391 +848,6 @@
     return PIECE_TYPES[type].cost;
   }
 
-  // ==================== 图标 ====================
-  function iconStar(c, s) {
-    c.fillStyle = '#fff';
-    c.beginPath();
-    for (let i = 0; i < 10; i++) {
-      const r = i % 2 === 0 ? s : s * 0.42;
-      const a = -Math.PI/2 + i * Math.PI/5;
-      const x = Math.cos(a) * r, y = Math.sin(a) * r;
-      i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
-    }
-    c.closePath(); c.fill();
-  }
-  function iconNova(c, s) {
-    c.save();
-    c.shadowColor = '#fef3c7'; c.shadowBlur = 10;
-    c.fillStyle = '#fff';
-    c.beginPath();
-    for (let i = 0; i < 8; i++) {
-      const r = i % 2 === 0 ? s : s * 0.26;
-      const a = -Math.PI/2 + i * Math.PI/4;
-      const x = Math.cos(a) * r, y = Math.sin(a) * r;
-      i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
-    }
-    c.closePath(); c.fill();
-    c.restore();
-    c.fillStyle = '#fbbf24';
-    c.beginPath(); c.arc(0, 0, s * 0.18, 0, Math.PI*2); c.fill();
-  }
-  function iconArcher(c, s) {
-    c.lineCap = 'round';
-    c.strokeStyle = '#fff';
-    c.lineWidth = s * 0.14;
-    c.beginPath();
-    c.arc(0, 0, s * 0.72, -Math.PI * 0.5, Math.PI * 0.5, true);
-    c.stroke();
-    c.lineWidth = s * 0.08;
-    c.beginPath();
-    c.moveTo(0, -s * 0.72); c.lineTo(0, s * 0.72);
-    c.stroke();
-    c.lineWidth = s * 0.11;
-    c.beginPath();
-    c.moveTo(-s * 0.55, 0); c.lineTo(s * 0.5, 0);
-    c.stroke();
-    c.fillStyle = '#fff';
-    c.beginPath();
-    c.moveTo(s * 0.85, 0);
-    c.lineTo(s * 0.42, -s * 0.28);
-    c.lineTo(s * 0.42, s * 0.28);
-    c.closePath(); c.fill();
-  }
-  function iconCannon(c, s) {
-    c.fillStyle = '#fff';
-    c.beginPath();
-    c.moveTo(-s * 0.22, s * 0.30);
-    c.lineTo(-s * 0.22, -s * 0.60);
-    c.lineTo(-s * 0.34, -s * 0.60);
-    c.lineTo(-s * 0.34, -s * 0.98);
-    c.lineTo( s * 0.34, -s * 0.98);
-    c.lineTo( s * 0.34, -s * 0.60);
-    c.lineTo( s * 0.22, -s * 0.60);
-    c.lineTo( s * 0.22, s * 0.30);
-    c.closePath(); c.fill();
-    c.beginPath(); c.arc(0, s * 0.38, s * 0.58, 0, Math.PI * 2); c.fill();
-    c.fillStyle = 'rgba(0,0,0,0.42)';
-    c.beginPath(); c.arc(0, s * 0.38, s * 0.20, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#fbbf24';
-    c.beginPath(); c.arc(0, -s * 0.80, s * 0.09, 0, Math.PI * 2); c.fill();
-  }
-  function iconWarrior(c, s) {
-    c.fillStyle = '#fff';
-    c.beginPath();
-    c.moveTo(0, -s);
-    c.lineTo(s * 0.16, -s * 0.55);
-    c.lineTo(s * 0.16, s * 0.15);
-    c.lineTo(-s * 0.16, s * 0.15);
-    c.lineTo(-s * 0.16, -s * 0.55);
-    c.closePath(); c.fill();
-    c.fillRect(-s * 0.5, s * 0.15, s * 1.0, s * 0.16);
-    c.fillRect(-s * 0.09, s * 0.31, s * 0.18, s * 0.5);
-    c.beginPath(); c.arc(0, s * 0.9, s * 0.13, 0, Math.PI*2); c.fill();
-  }
-  function iconRanger(c, s) {
-    function dagger() {
-      c.beginPath();
-      c.moveTo(0, -s);
-      c.lineTo(s * 0.13, -s * 0.40);
-      c.lineTo(s * 0.13, s * 0.25);
-      c.lineTo(-s * 0.13, s * 0.25);
-      c.lineTo(-s * 0.13, -s * 0.40);
-      c.closePath();
-      c.fill();
-      c.fillRect(-s * 0.42, s * 0.25, s * 0.84, s * 0.14);
-      c.fillRect(-s * 0.08, s * 0.39, s * 0.16, s * 0.34);
-      c.beginPath(); c.arc(0, s * 0.79, s * 0.11, 0, Math.PI*2); c.fill();
-    }
-    c.fillStyle = '#fff';
-    c.save(); c.rotate(-Math.PI / 4); dagger(); c.restore();
-    c.save(); c.rotate(Math.PI / 4); dagger(); c.restore();
-  }
-
-  // ★ 骑兵：向右看的马头剪影
-  function iconCavalry(c, s) {
-    c.fillStyle = '#fff';
-    c.beginPath();
-    // 鼻尖
-    c.moveTo(s * 0.85, s * 0.15);
-    // 嘴下
-    c.lineTo(s * 0.55, s * 0.55);
-    // 下巴
-    c.lineTo(s * 0.05, s * 0.65);
-    // 颈下
-    c.lineTo(-s * 0.5, s * 0.5);
-    // 颈后
-    c.lineTo(-s * 0.75, s * 0.0);
-    // 鬃毛底
-    c.lineTo(-s * 0.5, -s * 0.4);
-    // 鬃毛尖
-    c.lineTo(-s * 0.6, -s * 0.85);
-    // 鬃毛底
-    c.lineTo(-s * 0.15, -s * 0.5);
-    // 耳朵尖
-    c.lineTo(s * 0.05, -s * 0.85);
-    // 耳底
-    c.lineTo(s * 0.2, -s * 0.5);
-    // 额头
-    c.lineTo(s * 0.6, -s * 0.3);
-    // 鼻梁顶
-    c.lineTo(s * 0.9, -s * 0.1);
-    c.closePath();
-    c.fill();
-    // 眼睛
-    c.fillStyle = 'rgba(0,0,0,0.55)';
-    c.beginPath();
-    c.arc(s * 0.35, -s * 0.05, s * 0.09, 0, Math.PI * 2);
-    c.fill();
-  }
-
-  // ★ 无人机：四旋翼
-  function iconDrone(c, s) {
-    const rotors = [
-      [-s * 0.6, -s * 0.6],
-      [ s * 0.6, -s * 0.6],
-      [-s * 0.6,  s * 0.6],
-      [ s * 0.6,  s * 0.6],
-    ];
-    // 连接臂
-    c.strokeStyle = '#fff';
-    c.lineWidth = s * 0.13;
-    c.lineCap = 'round';
-    for (const [rx, ry] of rotors) {
-      c.beginPath();
-      c.moveTo(0, 0);
-      c.lineTo(rx, ry);
-      c.stroke();
-    }
-    // 旋翼圆盘
-    c.fillStyle = '#fff';
-    for (const [rx, ry] of rotors) {
-      c.beginPath();
-      c.arc(rx, ry, s * 0.26, 0, Math.PI * 2);
-      c.fill();
-    }
-    // 中心机身
-    c.beginPath();
-    c.arc(0, 0, s * 0.35, 0, Math.PI * 2);
-    c.fill();
-    // 中心内圈
-    c.fillStyle = 'rgba(0,0,0,0.5)';
-    c.beginPath();
-    c.arc(0, 0, s * 0.15, 0, Math.PI * 2);
-    c.fill();
-  }
-
-  function iconMage(c, s) {
-    c.fillStyle = '#fff';
-    c.beginPath();
-    c.moveTo(s * 0.10, -s * 0.95);
-    c.quadraticCurveTo(-s * 0.30, -s * 0.45, -s * 0.50, s * 0.00);
-    c.lineTo(s * 0.50, s * 0.00);
-    c.quadraticCurveTo(s * 0.35, -s * 0.45, s * 0.10, -s * 0.95);
-    c.closePath(); c.fill();
-    c.beginPath(); c.ellipse(0, s * 0.10, s * 0.85, s * 0.16, 0, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(s * 0.10, -s * 0.95, s * 0.13, 0, Math.PI * 2); c.fill();
-    c.fillStyle = 'rgba(0,0,0,0.42)';
-    c.beginPath(); c.arc(-s * 0.02, -s * 0.38, s * 0.10, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(s * 0.28, -s * 0.22, s * 0.06, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(-s * 0.30, -s * 0.18, s * 0.05, 0, Math.PI * 2); c.fill();
-  }
-  function iconWall(c, s) {
-    c.fillStyle = '#fff';
-    c.beginPath();
-    c.moveTo(-s * 0.85, s * 0.75);
-    c.lineTo(-s * 0.85, -s * 0.45);
-    c.lineTo(-s * 0.85, -s * 0.80); c.lineTo(-s * 0.55, -s * 0.80); c.lineTo(-s * 0.55, -s * 0.45);
-    c.lineTo(-s * 0.20, -s * 0.45); c.lineTo(-s * 0.20, -s * 0.80); c.lineTo( s * 0.20, -s * 0.80); c.lineTo( s * 0.20, -s * 0.45);
-    c.lineTo( s * 0.55, -s * 0.45); c.lineTo( s * 0.55, -s * 0.80); c.lineTo( s * 0.85, -s * 0.80);
-    c.lineTo( s * 0.85, s * 0.75);
-    c.closePath(); c.fill();
-    c.fillStyle = 'rgba(0,0,0,0.4)';
-    c.fillRect(-s * 0.85, s * 0.10, s * 1.7, s * 0.08);
-    c.fillRect(-s * 0.85, s * 0.45, s * 1.7, s * 0.08);
-  }
-  function iconIronWall(c, s) {
-    c.fillStyle = '#fff';
-    c.beginPath();
-    c.moveTo(-s * 0.95, s * 0.80);
-    c.lineTo(-s * 0.95, -s * 0.35);
-    c.lineTo(-s * 0.95, -s * 0.82); c.lineTo(-s * 0.60, -s * 0.82); c.lineTo(-s * 0.60, -s * 0.35);
-    c.lineTo(-s * 0.20, -s * 0.35); c.lineTo(-s * 0.20, -s * 0.82); c.lineTo( s * 0.20, -s * 0.82); c.lineTo( s * 0.20, -s * 0.35);
-    c.lineTo( s * 0.60, -s * 0.35); c.lineTo( s * 0.60, -s * 0.82); c.lineTo( s * 0.95, -s * 0.82);
-    c.lineTo( s * 0.95, s * 0.80);
-    c.closePath(); c.fill();
-    c.fillStyle = 'rgba(0,0,0,0.40)';
-    c.fillRect(-s * 0.95, s * 0.15, s * 1.9, s * 0.16);
-    c.fillRect(-s * 0.95, s * 0.52, s * 1.9, s * 0.16);
-    c.fillStyle = '#fff';
-    for (const x of [-0.75, -0.45, -0.15, 0.15, 0.45, 0.75]) {
-      c.beginPath(); c.arc(s * x, s * 0.23, s * 0.05, 0, Math.PI*2); c.fill();
-      c.beginPath(); c.arc(s * x, s * 0.60, s * 0.05, 0, Math.PI*2); c.fill();
-    }
-  }
-  function iconBarbedWire(c, s) {
-    c.save();
-    c.beginPath();
-    c.moveTo(0, -s * 0.9);
-    c.lineTo(s * 0.9, 0);
-    c.lineTo(0, s * 0.9);
-    c.lineTo(-s * 0.9, 0);
-    c.closePath();
-    c.clip();
-
-    c.strokeStyle = '#fff';
-    c.lineWidth = s * 0.10;
-    c.lineCap = 'round';
-    for (let i = -3; i <= 3; i++) {
-      const offset = i * s * 0.35;
-      c.beginPath();
-      c.moveTo(-s * 1.5 + offset, -s * 1.5);
-      c.lineTo(s * 1.5 + offset, s * 1.5);
-      c.stroke();
-      c.beginPath();
-      c.moveTo(s * 1.5 + offset, -s * 1.5);
-      c.lineTo(-s * 1.5 + offset, s * 1.5);
-      c.stroke();
-    }
-    c.restore();
-
-    c.strokeStyle = '#fff';
-    c.lineWidth = s * 0.14;
-    c.lineJoin = 'miter';
-    c.beginPath();
-    c.moveTo(0, -s * 0.9);
-    c.lineTo(s * 0.9, 0);
-    c.lineTo(0, s * 0.9);
-    c.lineTo(-s * 0.9, 0);
-    c.closePath();
-    c.stroke();
-
-    c.fillStyle = '#fff';
-    const spikes = [
-      { x: 0, y: -s * 0.9 },
-      { x: s * 0.9, y: 0 },
-      { x: 0, y: s * 0.9 },
-      { x: -s * 0.9, y: 0 },
-    ];
-    for (const p of spikes) {
-      c.beginPath();
-      c.arc(p.x, p.y, s * 0.12, 0, Math.PI * 2);
-      c.fill();
-    }
-  }
-  function iconWallPack(c, s) {
-    function miniWall(dx, dy, scale) {
-      const w = s * 0.55 * scale;
-      const h = s * 0.85 * scale;
-      const merlonW = w / 3;
-      c.beginPath();
-      c.moveTo(dx - w/2, dy + h/2);
-      c.lineTo(dx - w/2, dy - h/2);
-      c.lineTo(dx - w/2, dy - h/2 - merlonW * 0.4);
-      c.lineTo(dx - w/2 + merlonW, dy - h/2 - merlonW * 0.4);
-      c.lineTo(dx - w/2 + merlonW, dy - h/2);
-      c.lineTo(dx - w/2 + merlonW * 1.5, dy - h/2);
-      c.lineTo(dx - w/2 + merlonW * 1.5, dy - h/2 - merlonW * 0.4);
-      c.lineTo(dx - w/2 + merlonW * 2, dy - h/2 - merlonW * 0.4);
-      c.lineTo(dx - w/2 + merlonW * 2, dy - h/2);
-      c.lineTo(dx + w/2, dy - h/2);
-      c.lineTo(dx + w/2, dy + h/2);
-      c.closePath();
-      c.fill();
-      c.fillStyle = 'rgba(0,0,0,0.4)';
-      c.fillRect(dx - w/2, dy + h * 0.1, w, s * 0.06);
-      c.fillRect(dx - w/2, dy + h * 0.35, w, s * 0.06);
-      c.fillStyle = '#fff';
-    }
-    c.fillStyle = '#fff';
-    miniWall(-s * 0.55, s * 0.15, 0.8);
-    miniWall(0, -s * 0.05, 1.0);
-    miniWall(s * 0.55, s * 0.15, 0.8);
-  }
-  function iconBase(c, s) {
-    c.fillStyle = '#fff';
-    c.beginPath();
-    c.moveTo(-s * 0.75, s * 0.55);
-    c.lineTo(-s * 0.75, -s * 0.15);
-    c.lineTo(-s * 0.35, s * 0.1);
-    c.lineTo(0, -s * 0.6);
-    c.lineTo(s * 0.35, s * 0.1);
-    c.lineTo(s * 0.75, -s * 0.15);
-    c.lineTo(s * 0.75, s * 0.55);
-    c.closePath(); c.fill();
-    c.fillRect(-s * 0.75, s * 0.5, s * 1.5, s * 0.18);
-    c.fillStyle = 'rgba(0,0,0,0.45)';
-    c.beginPath(); c.arc(-s * 0.5, s * 0.32, s * 0.08, 0, Math.PI*2); c.fill();
-    c.beginPath(); c.arc(0,         s * 0.32, s * 0.08, 0, Math.PI*2); c.fill();
-    c.beginPath(); c.arc(s * 0.5,   s * 0.32, s * 0.08, 0, Math.PI*2); c.fill();
-  }
-  function iconFort(c, s) {
-    c.fillStyle = '#fff';
-    c.beginPath();
-    c.moveTo(0, -s * 0.75);
-    c.lineTo(s * 0.68, -s * 0.48);
-    c.lineTo(s * 0.68, s * 0.08);
-    c.quadraticCurveTo(s * 0.68, s * 0.62, 0, s * 0.8);
-    c.quadraticCurveTo(-s * 0.68, s * 0.62, -s * 0.68, s * 0.08);
-    c.lineTo(-s * 0.68, -s * 0.48);
-    c.closePath(); c.fill();
-    c.fillStyle = 'rgba(0,0,0,0.35)';
-    c.fillRect(-s * 0.09, -s * 0.45, s * 0.18, s * 0.9);
-    c.fillRect(-s * 0.38, -s * 0.18, s * 0.76, s * 0.18);
-  }
-
-  const ICONS = {
-    star: iconStar, nova: iconNova,
-    archer: iconArcher, cannon: iconCannon,
-    warrior: iconWarrior, ranger: iconRanger,
-    cavalry: iconCavalry, drone: iconDrone,
-    mage: iconMage,
-    wall: iconWall, ironwall: iconIronWall,
-    barbedwire: iconBarbedWire,
-    wallpack: iconWallPack,
-    base: iconBase, fort: iconFort,
-  };
-
-  function paintPieceBody(c, cx, cy, size, type, owner, opts = {}) {
-    const isP1 = owner === 1;
-    const main  = isP1 ? C.p1  : C.p2;
-    const dark  = isP1 ? C.p1d : C.p2d;
-    const light = isP1 ? C.p1l : C.p2l;
-    const radius = size * 0.22;
-
-    if (opts.shadow !== false) {
-      c.fillStyle = 'rgba(0,0,0,0.55)';
-      roundRectCtx(c, cx - size/2, cy - size/2 + 2, size, size, radius);
-      c.fill();
-    }
-    const g = c.createLinearGradient(0, cy - size/2, 0, cy + size/2);
-    g.addColorStop(0.00, light);
-    g.addColorStop(0.45, main);
-    g.addColorStop(1.00, dark);
-    c.fillStyle = g;
-    roundRectCtx(c, cx - size/2, cy - size/2, size, size, radius);
-    c.fill();
-    c.strokeStyle = '#ffffff';
-    c.lineWidth = 2;
-    roundRectCtx(c, cx - size/2, cy - size/2, size, size, radius);
-    c.stroke();
-
-    if (type === 'base') {
-      c.strokeStyle = 'rgba(255,255,255,0.5)';
-      c.lineWidth = 1.5;
-      roundRectCtx(c, cx - size/2 + 3.5, cy - size/2 + 3.5, size - 7, size - 7, radius - 2);
-      c.stroke();
-    }
-
-    const iconFn = ICONS[type];
-    if (iconFn) {
-      c.save();
-      c.translate(cx, cy - 1);
-      c.shadowColor = 'rgba(0,0,0,0.6)';
-      c.shadowBlur = 4;
-      iconFn(c, size * 0.30);
-      c.restore();
-    }
-  }
 
   const TINTS = {
     base1: C.base1Tint, base2: C.base2Tint,
@@ -1316,7 +967,7 @@
 
     ctx.save();
     ctx.globalAlpha = alpha;
-    paintPieceBody(ctx, cx, cy, size, piece.type, piece.owner);
+    SL.paintPieceBody(ctx, cx, cy, size, piece.type, piece.owner);
 
     const hpStr = String(Math.max(0, piece.hp));
     const digits = hpStr.length;
@@ -1406,7 +1057,7 @@
         } else {
           ctx.save();
           ctx.globalAlpha = 0.28; ctx.fillStyle = color;
-          ctx.beginPath(); ctx.arc(ic.x, ic.y, CFG.CELL * 1.5, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(ic.x, ic.y, CELL * 1.5, 0, Math.PI * 2); ctx.fill();
           ctx.restore();
           ctx.save();
           ctx.globalAlpha = 0.85; ctx.fillStyle = color;
@@ -1590,7 +1241,7 @@
       ctx.save();
       ctx.translate(r.x + r.w/2, r.y + r.h/2);
       ctx.globalAlpha = 0.4;
-      iconWarrior(ctx, r.w * 0.22);
+      SL.ICONS.iconWarrior(ctx, r.w * 0.22);
       ctx.restore();
     }
   }
@@ -1666,7 +1317,7 @@
     const cx = r.x + r.w/2, cy = r.y + r.h/2;
     const p = Math.min(1, e.t / e.dur);
     const alpha = 1 - p;
-    const radius = CFG.CELL * (0.35 + p * 1.5);
+    const radius = CELL * (0.35 + p * 1.5);
 
     const hot = e.style === 'drone' ? C.droneExplosionHot : C.explosionHot;
     const mid = e.style === 'drone' ? C.droneExplosionMid : C.explosionMid;
@@ -1683,7 +1334,7 @@
     ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI*2); ctx.fill();
     ctx.restore();
 
-    const coreR = CFG.CELL * 0.55 * (1 - p);
+    const coreR = CELL * 0.55 * (1 - p);
     if (coreR > 0.5) {
       ctx.fillStyle = `rgba(255, 255, 230, ${alpha})`;
       ctx.beginPath(); ctx.arc(cx, cy, coreR, 0, Math.PI*2); ctx.fill();
@@ -1697,6 +1348,9 @@
   }
 
   function draw() {
+    // 每帧重置变换：尺寸变化时 canvas.width 被赋值会清空上下文状态，
+    // 这里统一到一处重建，避免"缩放叠加两次"。
+    if (ctx.setTransform) ctx.setTransform(CFG.DPR * viewScale, 0, 0, CFG.DPR * viewScale, 0, 0);
     ctx.clearRect(0, 0, SIZE, SIZE);
     for (let row = 0; row < CFG.N; row++)
       for (let col = 0; col < CFG.N; col++)
@@ -2204,7 +1858,7 @@
       let c = col, r = row;
       while (inBounds(c + dc, r + dr)) { c += dc; r += dr; }
       const outCol = c + dc, outRow = r + dr;
-      end = { x: (outCol + 0.5) * CFG.CELL, y: (CFG.N - outRow - 0.5) * CFG.CELL };
+      end = { x: (outCol + 0.5) * CELL, y: (CFG.N - outRow - 0.5) * CELL };
     }
     const dist = Math.hypot(end.x - start.x, end.y - start.y);
     const dur = Math.max(0.12, dist / 1500);
@@ -2648,6 +2302,8 @@
 
     const cats = Object.entries(CATEGORIES).sort((a, b) => a[1].order - b[1].order);
     for (const [catId, cat] of cats) {
+      const hasPieces = Object.values(PIECE_TYPES).some(d => d.category === catId && d.cost > 0);
+      if (!hasPieces) continue;
       const btn = document.createElement('button');
       btn.className = 'cat-tab';
       btn.dataset.cat = catId;
@@ -2676,7 +2332,7 @@
     const c = canvasEl.getContext('2d');
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.clearRect(0, 0, W, H);
-    paintPieceBody(c, W/2, H/2, W - 6, type, owner);
+    SL.paintPieceBody(c, W/2, H/2, W - 6, type, owner);
   }
 
   function refreshBottomBar() {
@@ -3057,22 +2713,42 @@
     hintEl.textContent = hint;
   }
 
-  canvas.addEventListener('mousemove', (e) => {
+  // 桌面：鼠标移动即高亮格子（不必按住）；触屏：轻点落子、滑动交给 body 滚动，不误落子也不留高亮。
+  const TAP_SLOP = 10;      // 位移超过这个像素算「滑动」，不算点击
+  let press = null;          // { x, y, moved }
+
+  function updateHoverAt(e) {
     const rect = canvas.getBoundingClientRect();
-    const cell = pixelToCell(e.clientX - rect.left, e.clientY - rect.top);
+    const sx = SIZE / (rect.width || SIZE);
+    const cell = pixelToCell((e.clientX - rect.left) * sx, (e.clientY - rect.top) * sx);
     const prev = state.hover;
     const same = prev && cell && prev.col === cell.col && prev.row === cell.row;
     if (same || (!prev && !cell)) return;
     state.hover = cell;
     draw();
     updateHUD();
-  });
+  }
 
-  canvas.addEventListener('mouseleave', () => {
-    if (!state.hover) return;
-    state.hover = null;
-    draw();
-    updateHUD();
+  canvas.addEventListener('pointerdown', (e) => {
+    press = { x: e.clientX, y: e.clientY, moved: false };
+    if ((e.pointerType || 'mouse') === 'mouse') updateHoverAt(e);
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (press && (Math.abs(e.clientX - press.x) > TAP_SLOP || Math.abs(e.clientY - press.y) > TAP_SLOP)) press.moved = true;
+    // 桌面端不按下也跟随高亮；触屏不画 hover（避免残留）
+    if ((e.pointerType || 'mouse') === 'mouse') updateHoverAt(e);
+  });
+  canvas.addEventListener('pointerup', (e) => {
+    const p = press; press = null;
+    // 只有「按下后没怎么移动」才算点击；桌面/触屏统一在这里处理（不再用 click，避免双触发）
+    if (p && !p.moved) handleBoardClick(e);
+  });
+  canvas.addEventListener('pointercancel', () => {
+    press = null;
+    if (state.hover) { state.hover = null; draw(); updateHUD(); }
+  });
+  canvas.addEventListener('pointerleave', () => {
+    if (state.hover) { state.hover = null; draw(); updateHUD(); }
   });
 
   document.addEventListener('keydown', (e) => {
@@ -3081,10 +2757,11 @@
     }
   });
 
-  canvas.addEventListener('click', (e) => {
+  function handleBoardClick(e) {
     if (state.gameOver) return;
     const rect = canvas.getBoundingClientRect();
-    const cell = pixelToCell(e.clientX - rect.left, e.clientY - rect.top);
+    const sx = SIZE / (rect.width || SIZE);
+    const cell = pixelToCell((e.clientX - rect.left) * sx, (e.clientY - rect.top) * sx);
 
     if (!cell) {
       state.placing = null;
@@ -3273,7 +2950,7 @@
     resetControl();
     state.openCategory = null;
     updateHUD(); draw();
-  });
+  }
 
   let lastTime = performance.now();
   function loop(now) {
@@ -3293,10 +2970,26 @@
   updateAllStructures();
   const firstResult = startTurn(1);
   updateHUD();
+  fitCanvas();
   requestAnimationFrame(loop);
   setTimeout(() => showTurnBanner(1, firstResult.gained, firstResult.extras), 200);
 
-  window.__game = { state, CFG, PIECE_TYPES, CATEGORIES, CORE_FUNCTIONS, BEACONS, VOUCHER_PRICES };
+  // ---- 自适应：窗口 / 转向 / 底栏展开都会改变可用高度 ----
+  let fitRaf = null;
+  const refit = () => {
+    if (fitRaf) cancelAnimationFrame(fitRaf);
+    fitRaf = requestAnimationFrame(() => { fitRaf = null; fitCanvas(); draw(); });
+  };
+  window.addEventListener('resize', refit);
+  window.addEventListener('orientationchange', refit);
+  // 棋子面板 / 操作菜单展开会让底栏变高：只更新滚动留白，不重算棋盘尺寸（避免弹出时棋盘跳动）
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(() => layoutChrome());
+    ro.observe(document.querySelector('.bottom-bar'));
+    ro.observe(document.querySelector('.hud'));
+  }
+
+  window.__game = { state, CFG, PIECE_TYPES, CATEGORIES, CORE_FUNCTIONS, BEACONS, VOUCHER_PRICES, fitCanvas };
 })();
 </script>
 </body>

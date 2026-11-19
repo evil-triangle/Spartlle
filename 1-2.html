@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Spartlle · 第一章 LEVEL 02</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Michroma&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/piecesheet.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden; background: #05050d; color: #e2e8f0;
+    font-family: 'Rajdhani', -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    /* 允许纵向平移：棋盘要能上下滑动来避开底部弹出的说明条。
+       touch-action 沿祖先链求交，这里若为 none，子元素的滚动会被一起禁掉。 */
+    user-select: none; touch-action: pan-y;
+  }
+
+  #starfield { position: fixed; inset: 0; display: block; z-index: 0; }
+  .vignette { position: fixed; inset: 0; background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.9) 100%); pointer-events: none; z-index: 1; }
+
+  /* ===== 顶部栏 ===== */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; padding-top: calc(10px + env(safe-area-inset-top));
+    background: linear-gradient(180deg, rgba(5,5,13,0.95) 0%, rgba(5,5,13,0) 100%); pointer-events: none;
+  }
+  .topbar > * { pointer-events: auto; }
+  .topbar-left { display: flex; gap: 8px; }
+
+  .back-btn {
+    display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(15,23,42,0.85);
+    border: 1px solid rgba(148,163,184,0.22); border-radius: 4px; color: #94a3b8;
+    font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700;
+    cursor: pointer; transition: all 0.22s; backdrop-filter: blur(6px);
+  }
+  .back-btn:hover, .back-btn:active { color: #fff; border-color: #60a5fa; }
+
+  .hud-stats { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  .stat-box {
+    display: flex; align-items: center; gap: 4px; padding: 4px 8px; background: rgba(15,23,42,0.85);
+    border: 1px solid rgba(148,163,184,0.22); border-radius: 4px; backdrop-filter: blur(6px);
+    font-family: 'Rajdhani', sans-serif;
+  }
+  .stat-label { font-size: 9px; color: #64748b; font-weight: 700; display: none; }
+  .stat-value { font-family: 'Michroma', sans-serif; font-size: 11px; color: #7dd3fc; }
+  .stat-box.meteor .stat-value { color: #fbbf24; }
+  .stat-box.meteor .stat-icon { color: #fbbf24; }
+  .stat-box.wave .stat-value { color: #f87171; }
+  .stat-icon { width: 10px; height: 10px; display: flex; align-items: center; justify-content: center; }
+  .stat-icon svg { width: 100%; height: 100%; display: block; }
+
+  .phase-tag {
+    padding: 4px 8px; border-radius: 4px; font-family: 'Michroma', sans-serif;
+    font-size: 9px; letter-spacing: 0.1em; border: 1px solid; transition: all 0.3s;
+  }
+  .phase-tag.prepare { color: #22d3ee; border-color: rgba(34,211,238,0.5); background: rgba(34,211,238,0.08); }
+  .phase-tag.battle { color: #f87171; border-color: rgba(248,113,113,0.5); background: rgba(248,113,113,0.08); animation: phasePulse 1.5s infinite; }
+  @keyframes phasePulse { 0%, 100% { box-shadow: 0 0 0 rgba(248,113,113,0); } 50% { box-shadow: 0 0 8px rgba(248,113,113,0.5); } }
+
+  /* ===== 舞台：可上下滑动的棋盘 ===== */
+  /* 棋盘尺寸固定不变；说明条弹出时不再缩小棋盘，被底栏盖住的部分靠上下滑动移出来看。 */
+  .stage {
+    position: fixed; inset: 0; z-index: 5;
+    overflow-y: auto; overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+  .board-wrap {
+    min-height: 100%;
+    display: flex; flex-direction: column; align-items: center;
+    /* 上下留白由 JS 写入：顶部让开顶栏，底部保证能滚到让棋盘下沿露出底栏上方 */
+    padding: var(--pad-top, 60px) var(--pad-right, 6px) var(--pad-bottom, 160px) 6px;
+  }
+  #board {
+    display: block; border-radius: 8px; box-shadow: 0 0 0 1px rgba(96,165,250,0.2), 0 0 30px rgba(96,165,250,0.15);
+    cursor: pointer; touch-action: pan-y; flex-shrink: 0;
+    /* 有余量时垂直居中，内容超高时 auto 归零 → 顶部不会被裁掉、能滚到 */
+    margin: auto 0;
+  }
+
+  /* ===== 底部 UI ===== */
+  /* 提示挪到顶栏下沿，原来贴在 155px 处正好横在棋盘下边缘 */
+  .hint {
+    position: fixed; top: calc(52px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 9;
+    font-size: 11px; color: #94a3b8; letter-spacing: 0.05em; text-align: center; pointer-events: none;
+    padding: 3px 10px; border-radius: 4px; background: rgba(5,5,13,0.8); max-width: 92vw;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: opacity 0.3s;
+  }
+  .hint.hidden { opacity: 0; }
+
+  .bottom-panel {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    background: linear-gradient(0deg, rgba(5,5,13,0.99) 0%, rgba(5,5,13,0.9) 72%, rgba(5,5,13,0) 100%);
+    backdrop-filter: blur(6px);
+  }
+
+  /* 铲除 / 移动运输舰收成底栏左侧一列，不再独占一整行 */
+  .toolbar-row {
+    display: flex; flex-direction: column; gap: 4px; flex-shrink: 0;
+  }
+
+  .special-btn {
+    padding: 4px 8px; border-radius: 9px; font-family: 'Rajdhani', sans-serif;
+    font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+    min-width: 62px; max-width: 84px; line-height: 1.15;
+    border: 1.5px solid rgba(148,163,184,0.4); background: rgba(15,23,42,0.88); color: #cbd5e1;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  }
+  .special-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .special-btn.danger { border-color: rgba(239,68,68,0.5); color: #fca5a5; }
+  .special-btn.danger.active { background: rgba(239,68,68,0.2); border-color: #ef4444; }
+  .special-btn.primary { border-color: rgba(34,211,238,0.5); color: #67e8f9; }
+  .special-btn.primary.active { background: rgba(34,211,238,0.2); border-color: #22d3ee; box-shadow: 0 0 12px rgba(34,211,238,0.3); }
+
+  #pieceContainer { flex: 1; min-width: 0; }
+
+  .bottom-panel .hint-line {
+    width: 100%; max-width: 720px; font-size: 11px; color: #94a3b8; text-align: center;
+    line-height: 1.35; min-height: 15px;
+  }
+
+  /* 棋子操作条：底栏里的普通一行（不是浮层），不会盖住棋盘 */
+  .action-panel {
+    display: none; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px;
+    width: 100%; max-width: 720px; padding: 4px 6px;
+    background: rgba(10, 15, 30, 0.92); border: 1.5px solid rgba(96,165,250,0.4); border-radius: 8px;
+  }
+  .action-panel.show { display: flex; }
+  #actionButtons { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px; }
+  .action-panel-title {
+    font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700; color: #e2e8f0;
+    padding: 0 4px 0 2px; border-right: 1px solid rgba(148,163,184,0.3); margin-right: 2px;
+  }
+  .action-hint-label { font-size: 11px; color: #fbbf24; padding: 0 4px; }
+  .action-btn {
+    padding: 6px 12px; border-radius: 6px; font-family: 'Rajdhani', sans-serif;
+    font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s;
+    border: 1px solid transparent; background: rgba(15,23,42,0.8); color: #cbd5e1;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  }
+  .action-btn.active { border-color: #fbbf24; color: #fde68a; background: rgba(251,191,36,0.1); }
+  .action-btn.btn-attack.active { border-color: #ef4444; color: #fca5a5; }
+  .action-btn.btn-move.active { border-color: #22c55e; color: #86efac; }
+  .action-btn.btn-shoot.active { border-color: #22d3ee; color: #67e8f9; }
+  .action-btn.btn-cancel { border-color: rgba(148,163,184,0.3); color: #94a3b8; }
+
+  /* ===== 规则弹窗 ===== */
+  /* 不再全屏压住棋盘：改成右侧抽屉，棋盘仍可见，玩家可以边看规则边对照布局。
+     窄屏时自动变成底部半屏抽屉。 */
+  .rules-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(2,4,10,0.45);
+    backdrop-filter: blur(2px);
+    display: none; align-items: flex-start; justify-content: flex-end; padding: 12px;
+  }
+  .rules-overlay.show { display: flex; }
+  .rules-card {
+    width: 100%; max-width: 360px; max-height: calc(100% - 24px); overflow-y: auto;
+    padding: 18px 20px; background: linear-gradient(180deg, rgba(15,23,42,0.99) 0%, rgba(8,12,24,0.99) 100%);
+    border: 1.5px solid rgba(96,165,250,0.6); border-radius: 12px; box-shadow: 0 0 40px rgba(96,165,250,0.35);
+  }
+  .rules-title { font-family: 'Michroma', sans-serif; font-size: 20px; color: #7dd3fc; margin-bottom: 16px; text-align: center; letter-spacing: 0.2em; }
+  .rules-content { font-size: 13px; color: #cbd5e1; line-height: 1.6; margin-bottom: 20px; }
+  .rules-content p { margin-bottom: 10px; }
+  .rules-content .hl { color: #fbbf24; font-weight: 700; }
+  .rules-content .danger { color: #f87171; font-weight: 700; }
+  .rules-btn {
+    width: 100%; padding: 12px; border-radius: 6px; background: #22d3ee; color: #0a0a1a;
+    border: none; font-family: 'Rajdhani', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer;
+  }
+
+  .gameover-overlay {
+    position: fixed; inset: 0; z-index: 100; background: rgba(2, 4, 10, 0.85);
+    backdrop-filter: blur(10px); display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  .gameover-overlay.show { display: flex; }
+  .gameover-card {
+    text-align: center; padding: 24px; width: 100%; max-width: 320px;
+    background: linear-gradient(180deg, rgba(15,23,42,0.98) 0%, rgba(8,12,24,0.98) 100%);
+    border: 1.5px solid; border-radius: 12px;
+  }
+  .gameover-card.win { border-color: rgba(34,211,238,0.6); }
+  .gameover-card.lose { border-color: rgba(239,68,68,0.6); }
+  .gameover-title { font-family: 'Michroma', sans-serif; font-size: 20px; margin-bottom: 8px; }
+  .gameover-card.win .gameover-title { color: #22d3ee; }
+  .gameover-card.lose .gameover-title { color: #f87171; }
+  .gameover-sub { font-size: 12px; color: #94a3b8; margin-bottom: 16px; }
+  .gameover-btn {
+    padding: 10px 16px; border-radius: 6px; font-family: 'Rajdhani', sans-serif;
+    font-size: 13px; font-weight: 700; cursor: pointer; border: 1.5px solid;
+  }
+  .gameover-btn.primary { color: #0a0a1a; background: #22d3ee; border-color: #22d3ee; }
+  .gameover-btn.secondary { color: #94a3b8; border-color: rgba(148,163,184,0.4); background: transparent; margin-left: 8px; }
+
+  @media (min-width: 600px) {
+    .stat-label { display: block; }
+    .special-btn { font-size: 12px; max-width: 96px; }
+    .action-panel { gap: 6px; padding: 6px 10px; }
+    .action-btn { padding: 6px 14px; font-size: 13px; }
+    #board { border-radius: 10px; box-shadow: 0 0 0 1px rgba(96,165,250,0.2), 0 0 40px rgba(96,165,250,0.15); }
+  }
+
+  /* 窄屏（手机竖屏）：规则抽屉改为从底部弹出，高度受限，棋盘上半部分仍可见 */
+  @media (max-width: 600px) {
+    .rules-overlay { align-items: flex-end; justify-content: center; padding: 0 0 calc(8px + env(safe-area-inset-bottom)); }
+    .rules-card { max-width: 100%; max-height: 62vh; border-radius: 14px 14px 10px 10px; padding: 16px; }
+    .rules-content { font-size: 12.5px; margin-bottom: 14px; }
+    .rules-title { font-size: 17px; margin-bottom: 12px; }
+  }
+
+  /* 横屏手机：顶栏与棋盘贴得更紧，底栏压扁 */
+  @media (max-height: 460px) {
+    .hint { top: calc(44px + env(safe-area-inset-top)); font-size: 10px; }
+    .bottom-panel .hint-line { display: none; }
+    .special-btn { font-size: 10px; min-width: 54px; }
+    .rules-card { max-height: calc(100% - 16px); }
+  }
+
+  /* 横屏手机：棋子条挪到右侧竖排，棋盘能拿到几乎整屏高度 */
+  @media (orientation: landscape) and (max-height: 520px) {
+    #bottomPanel {
+      left: auto; right: 0; top: 0; bottom: 0; width: 180px;
+      justify-content: center; padding: 8px 6px;
+      padding-right: calc(6px + env(safe-area-inset-right, 0px));
+      background: linear-gradient(90deg, rgba(5,5,13,0) 0%, rgba(5,5,13,0.96) 24%);
+      overflow-y: auto;
+    }
+    #bottomPanel .hint-line { display: none; }
+    .dock-row { flex-direction: column; align-items: stretch; gap: 6px; }
+    /* 两个特殊按钮竖排：并排时「移动运输舰 (9回合后)」这种长文案会被裁掉 */
+    .toolbar-row { flex-direction: column; gap: 4px; }
+    .special-btn {
+      width: 100%; min-width: 0; max-width: none;
+      font-size: 10px; line-height: 1.2; padding: 5px 4px;
+      white-space: normal; word-break: break-word; overflow: hidden;
+    }
+    /* 内联 --ps-cols 优先级更高，这里直接写列数 */
+    #pieceContainer { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ps-desc-text { max-height: 96px; }
+    .action-panel { padding: 4px; }
+    .action-btn { padding: 5px 6px; font-size: 10px; }
+    .action-panel-title { font-size: 10px; }
+
+    .topbar { padding-right: 192px; }
+    .hud-stats { gap: 3px; }
+    .hud-stats .stat-box { padding: 3px 6px; }
+    .hud-stats .phase-tag { padding: 3px 6px; }
+
+    /* 规则抽屉改到左侧，别盖住棋子条 */
+    .rules-overlay { justify-content: flex-start; align-items: center; padding-left: 10px; }
+    .rules-card { max-width: 340px; max-height: calc(100% - 20px); }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+<div class="vignette"></div>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <button class="back-btn" id="backBtn">← 返回</button>
+    <button class="back-btn" id="codexBtn" style="border-color: rgba(168,85,247,0.4); color: #d8b4fe;">📖 图鉴</button>
+  </div>
+  
+  <div class="hud-stats">
+    <div class="stat-box"><span class="stat-label">TURN</span><span class="stat-value" id="hudTurn">1</span></div>
+    <div class="stat-box meteor">
+      <span class="stat-icon"><svg viewBox="0 0 16 16"><path d="M8 1 L15 8 L8 15 L1 8 Z" fill="currentColor"/></svg></span>
+      <span class="stat-value" id="hudMeteor">10</span>
+    </div>
+    <div class="stat-box wave"><span class="stat-label">WAVE</span><span class="stat-value" id="hudWave">0/∞</span></div>
+    <div class="phase-tag prepare" id="hudPhase">准备</div>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="board-wrap">
+    <canvas id="board"></canvas>
+  </div>
+</div>
+
+<div class="hint" id="hint">准备阶段：布置防线，保护运输舰</div>
+
+<div class="bottom-panel" id="bottomPanel">
+  <div class="hint-line" id="descLine">点一下棋子，这里会说明它能干什么</div>
+  <!-- 操作条是底栏的一行，点棋子时才展开；不再是盖在棋盘上的浮层 -->
+  <div class="action-panel" id="actionPanel">
+    <div class="action-panel-title" id="actionPanelTitle">棋子</div>
+    <div id="actionButtons"></div>
+  </div>
+  <div class="ps-desc" id="pieceDesc">
+    <canvas class="ps-desc-icon" id="descIcon" width="44" height="44"></canvas>
+    <div class="ps-desc-body">
+      <div class="ps-desc-head"><span id="descName"></span><span class="ps-desc-tag" id="descTag"></span></div>
+      <div class="ps-desc-text" id="descText"></div>
+    </div>
+  </div>
+  <div class="dock-row">
+    <div class="toolbar-row">
+      <button class="special-btn danger" id="sellBtn">铲除模式</button>
+      <button class="special-btn primary" id="moveTransportBtn">移动运输舰</button>
+    </div>
+    <div class="ps-sheet" id="pieceContainer" style="--ps-cols:3"></div>
+  </div>
+</div>
+
+<!-- 开局说明弹窗：右侧/底部抽屉，不遮住整个棋盘 -->
+<div class="rules-overlay" id="rulesOverlay">
+  <div class="rules-card">
+    <div class="rules-title">LEVEL 02 · 运输</div>
+    <div class="rules-content">
+      <p>你的目标是保护 <span class="hl">运输舰</span> 从<strong>左下角</strong>移动到<strong>右上角</strong>。</p>
+      <p>【运输路线】<br>
+         起点：<span class="hl">左下角 (0,0)</span> → 沿<strong>下边线</strong>向右移动至 (7,0) → 沿<strong>右边线</strong>向上移动至 <span class="hl">右上角 (7,7)</span>。</p>
+      <p>1. 准备阶段持续 9 回合，请布置好防线。<br>
+         2. 准备阶段结束后，<span class="hl">每 3 回合</span> 可移动一次运输舰（需路径无阻挡）。<br>
+         3. 运输舰不能穿过己方棋子，请合理规划路线。</p>
+      <p>【新敌人：飞行器】<br>
+         会朝运输舰移动，若其移动方向的 <span class="danger">2 格射程</span> 内有玩家单位，将直接发射箭矢造成 <span class="danger">2 点伤害</span>（不会移动）。</p>
+      <p>【主动操作】点击已放置的 <span class="hl">弓箭</span> 可指定方向射击；点击 <span class="hl">勇士</span> 可攻击相邻敌人或移动 1~3 格；点击 <span class="hl">星炮</span> 可指定方向炮击。操作按钮出现在底栏，不会遮住棋盘。</p>
+      <p>【快速布墙】选中后连续点 <span class="hl">3 个绿色格</span> 放下壁垒，只扣一次陨石；取消会全额退还。</p>
+      <p>【提示】利用 <span class="hl">铲除模式</span> 可以拆除棋子（<strong>不返还陨石</strong>），及时清理路径。</p>
+    </div>
+    <button class="rules-btn" id="rulesCloseBtn">开始部署</button>
+  </div>
+</div>
+
+<div class="gameover-overlay" id="gameoverOverlay">
+  <div class="gameover-card" id="gameoverCard">
+    <div class="gameover-title" id="gameoverTitle">VICTORY</div>
+    <div class="gameover-sub" id="gameoverSub">运输舰已安全抵达</div>
+    <div>
+      <button class="gameover-btn primary" id="gameoverBackBtn">返回</button>
+      <button class="gameover-btn secondary" id="gameoverRetryBtn">重试</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/util.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/pieces.js"></script>
+<script src="js/piecesheet.js"></script>
+<script src="js/starfield.js"></script>
+<script src="js/save.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  // ==================== 配置 ====================
+  const CFG = {
+    N: 8, CELL: 65, DPR: Math.min(window.devicePixelRatio || 1, 2),
+    PREPARE_TURNS: 9,
+    SPAWN_INTERVAL: 3,
+    TRANSPORT_INTERVAL: 3,
+    START_METEORS: 10,
+  };
+
+  const PIECES = SL.PIECE_TYPES;
+
+  // 本关开放建造的棋子白名单（与共享引擎解耦：引擎新增棋子不会污染本关）
+  const AVAILABLE_PIECES = ['star', 'archer', 'warrior', 'wall', 'wallpack', 'cannon'];
+
+  // 运输舰路径：沿下边线往右，再沿右边线往上
+  const PATH = [];
+  for (let i = 0; i < 8; i++) PATH.push({ col: i, row: 0 });
+  for (let i = 1; i < 8; i++) PATH.push({ col: 7, row: i });
+
+  const SPAWNER_POS = { col: 0, row: 7 };
+  const SPAWN_CELLS = [{ col: 0, row: 6 }, { col: 1, row: 7 }, { col: 1, row: 6 }];
+
+  const DIRS8 = [{dc:1,dr:0},{dc:-1,dr:0},{dc:0,dr:1},{dc:0,dr:-1},{dc:1,dr:1},{dc:1,dr:-1},{dc:-1,dr:1},{dc:-1,dr:-1}];
+  const DIRS4 = [{dc:1,dr:0},{dc:-1,dr:0},{dc:0,dr:1},{dc:0,dr:-1}];
+
+  const C = {
+    empty: '#0f0f1a', grid: '#1e1e30', spawner: '#1a0511', spawnCell: '#150612',
+    path: '#1e293b', pathHighlight: '#334155',
+    p1: '#3b82f6', p1d: '#1e40af', p1l: '#93c5fd',
+    mech: '#7f1d1d', mechD: '#450a0a', mechL: '#f87171',
+    flyer: '#4c1d95', flyerD: '#2e1065', flyerL: '#c4b5fd',
+    hover: '#ffffff', select: '#fbbf24', valid: '#22c55e', sell: '#ef4444',
+    aim: '#22d3ee', aimEmpty: '#64748b', attack: '#ef4444', move: '#22c55e',
+    shell: '#fb923c', explosionHot: '#fff7ed', explosionMid: '#fb923c', explosionEdge: 'rgba(234,88,12,0)'
+  };
+
+  const state = {
+    turn: 1, completedTurns: 0, meteors: CFG.START_METEORS,
+    pieces: new Map(), enemies: [], wave: 0, phase: 'prepare',
+    gameOver: false, victory: false, isProcessing: false,
+    
+    transportIndex: 0,
+    transportCooldown: 0,
+    
+    placing: null, selling: false, hover: null,
+    selected: null, controlAction: null, multiPlace: null,
+    arrows: [], explosions: [],
+  };
+
+  function cellRect(col, row) { return { x: col * CFG.CELL, y: (CFG.N - 1 - row) * CFG.CELL, w: CFG.CELL, h: CFG.CELL }; }
+  function cellCenter(col, row) { const r = cellRect(col, row); return { x: r.x + r.w / 2, y: r.y + r.h / 2 }; }
+  function pixelToCell(px, py, rectWidth, rectHeight) {
+    const scaleX = SIZE / rectWidth; const scaleY = SIZE / rectHeight;
+    const col = Math.floor((px * scaleX) / CFG.CELL); const row = CFG.N - 1 - Math.floor((py * scaleY) / CFG.CELL);
+    return (col >= 0 && col < CFG.N && row >= 0 && row < CFG.N) ? { col, row } : null;
+  }
+  const key = (c, r) => c + ',' + r;
+  const inBounds = (c, r) => c >= 0 && c < CFG.N && r >= 0 && r < CFG.N;
+
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const SIZE = CFG.N * CFG.CELL;
+  canvas.width = SIZE * CFG.DPR; canvas.height = SIZE * CFG.DPR; ctx.scale(CFG.DPR, CFG.DPR);
+
+  // ==================== 尺寸自适应：固定棋盘 + 纵向滚动 ====================
+  // 棋盘边长只由「视口」决定，绝不读顶栏 / 底栏的实时高度：
+  // 点棋子弹出说明条时棋盘尺寸不会跳动；被盖住的部分靠 .stage 纵向滚动移出来看。
+  const SIDE_QUERY = '(orientation: landscape) and (max-height: 520px)';
+  const SIDE_W = 180;   // 横屏时右侧棋子条的宽度（与 CSS 里 #bottomPanel 的 width 对齐）
+
+  // 只写「滚动留白」的 CSS 变量，不碰棋盘尺寸。底栏变高时由 ResizeObserver 调用。
+  function layoutChrome() {
+    const root = document.documentElement;
+    const topbar = document.querySelector('.topbar');
+    const bottom = document.getElementById('bottomPanel');
+    const topH = topbar ? topbar.getBoundingClientRect().height : 56;
+    const botH = bottom ? bottom.getBoundingClientRect().height : 140;
+
+    if (window.matchMedia(SIDE_QUERY).matches) {
+      // 横屏：底栏变成右侧竖条，占宽度不占高度
+      root.style.setProperty('--pad-top', '50px');
+      root.style.setProperty('--pad-bottom', '24px');
+      root.style.setProperty('--pad-right', (SIDE_W + 6) + 'px');
+      root.style.setProperty('--dock-h', '0px');
+    } else {
+      root.style.setProperty('--pad-top', Math.ceil(topH + 12) + 'px');
+      // 底部留白 = 底栏当前高 + 余量，保证能把棋盘下沿滚到底栏上方
+      root.style.setProperty('--pad-bottom', Math.ceil(botH + 40) + 'px');
+      root.style.setProperty('--pad-right', '6px');
+      root.style.setProperty('--dock-h', Math.ceil(botH) + 'px');
+    }
+  }
+
+  function fitCanvas() {
+    const side = window.matchMedia(SIDE_QUERY).matches;
+    const availW = window.innerWidth - (side ? SIDE_W : 0) - 12;
+    const availH = window.innerHeight - (side ? 56 : 150);
+    const size = Math.max(120, Math.min(availW, availH));
+    canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
+    layoutChrome();
+  }
+
+  // ==================== 绘制工具 ====================
+  const roundRect = (x, y, w, h, r) => SL.roundRectCtx(ctx, x, y, w, h, r);
+
+
+  function getPieceAt(col, row) { return state.pieces.get(key(col, row)); }
+  function getEnemyAt(col, row) { return state.enemies.find(e => e.col === col && e.row === row); }
+  function isDisabledCell(col, row) {
+    if (col === SPAWNER_POS.col && row === SPAWNER_POS.row) return true;
+    for (const s of SPAWN_CELLS) if (s.col === col && s.row === row) return true;
+    return false;
+  }
+
+  function getPlaceableCells() {
+    const set = new Set();
+    for (const [k] of state.pieces) {
+      const [col, row] = k.split(',').map(Number);
+      for (const d of DIRS8) {
+        const c = col + d.dc; const r = row + d.dr;
+        if (!inBounds(c, r) || isDisabledCell(c, r) || state.pieces.has(key(c, r)) || getEnemyAt(c, r)) continue;
+        set.add(key(c, r));
+      }
+    }
+    const tPos = PATH[state.transportIndex];
+    for (const d of DIRS8) {
+      const c = tPos.col + d.dc; const r = tPos.row + d.dr;
+      if (!inBounds(c, r) || isDisabledCell(c, r) || state.pieces.has(key(c, r)) || getEnemyAt(c, r)) continue;
+      set.add(key(c, r));
+    }
+    return [...set].map(k => { const [col, row] = k.split(',').map(Number); return { col, row }; });
+  }
+
+  // ==================== 棋子主动操作 ====================
+  // 沿方向找到第一个目标：敌人 / 运输舰 / 己方棋子；都没有则飞向边界外。
+  // 生成区按普通空格处理：箭矢、炮弹可以直接穿过，不再被拦截。
+  function findShootTarget(col, row, dc, dr) {
+    let c = col + dc, r = row + dr;
+    const tPos = PATH[state.transportIndex];
+    while (inBounds(c, r)) {
+      const en = getEnemyAt(c, r);
+      if (en) return { col: c, row: r, kind: 'enemy', enemy: en };
+      if (tPos && tPos.col === c && tPos.row === r) return { col: c, row: r, kind: 'transport' };
+      if (state.pieces.has(key(c, r))) return { col: c, row: r, kind: 'piece' };
+      c += dc; r += dr;
+    }
+    return null;
+  }
+
+  function shootEndPoint(col, row, dc, dr, hit) {
+    if (hit) return cellCenter(hit.col, hit.row);
+    let c = col, r = row;
+    while (inBounds(c + dc, r + dr)) { c += dc; r += dr; }
+    return { x: (c + dc + 0.5) * CFG.CELL, y: (CFG.N - (r + dr) - 0.5) * CFG.CELL };
+  }
+
+  function damageEnemy(en, amount) {
+    en.hp -= amount;
+    if (en.hp <= 0) {
+      const i = state.enemies.indexOf(en);
+      if (i >= 0) state.enemies.splice(i, 1);
+    }
+  }
+
+  function flyArrow(col, row, dc, dr, hit, color, speed) {
+    const start = cellCenter(col, row), end = shootEndPoint(col, row, dc, dr, hit);
+    const dist = Math.hypot(end.x - start.x, end.y - start.y);
+    state.arrows.push({
+      x0: start.x, y0: start.y, x: start.x, y: start.y,
+      tx: end.x, ty: end.y, t: 0, dur: Math.max(0.12, dist / speed),
+      color: color,
+    });
+  }
+
+  // 弓箭：沿一个方向发射，命中第一个目标造成 1 伤害（敌人扣血；己方棋子与运输舰只挡箭）
+  function doShoot(col, row, dc, dr) {
+    const hit = findShootTarget(col, row, dc, dr);
+    flyArrow(col, row, dc, dr, hit, '#22d3ee', 1400);
+    if (hit && hit.kind === 'enemy') damageEnemy(hit.enemy, 1);
+    endPlayerTurn(); return true;
+  }
+
+  // 对某格上的敌人和己方棋子同时结算伤害（星炮范围伤害：有友伤）
+  function blastDamageAt(col, row, dmg) {
+    const en = getEnemyAt(col, row);
+    if (en) damageEnemy(en, dmg);
+    const k = key(col, row);
+    const piece = state.pieces.get(k);
+    if (piece) {
+      piece.hp -= dmg;
+      if (piece.hp <= 0) {
+        state.pieces.delete(k);
+        // 被炸掉的棋子若正处于选中态，清掉操作状态
+        if (state.selected && state.selected.col === col && state.selected.row === row) {
+          state.selected = null; state.controlAction = null;
+        }
+      }
+    }
+  }
+
+  // 星炮：命中点爆心 7 伤害、周围 8 格 3 伤害；敌人和己方棋子都会受伤（友伤），并播放爆炸特效
+  function doCannonShot(col, row, dc, dr) {
+    const hit = findShootTarget(col, row, dc, dr);
+    flyArrow(col, row, dc, dr, hit, '#fb923c', 1100);
+    if (hit) {
+      state.explosions.push({ col: hit.col, row: hit.row, t: 0, dur: 0.6 });
+      shakeCanvas(7, 280);
+      blastDamageAt(hit.col, hit.row, 7);
+      for (const d of DIRS8) blastDamageAt(hit.col + d.dc, hit.row + d.dr, 3);
+    }
+    endPlayerTurn(); return true;
+  }
+
+  // 勇士：近战攻击相邻 8 格中的一格，造成 2 点伤害
+  function doMeleeAttack(fromCol, fromRow, toCol, toRow) {
+    const attacker = getPieceAt(fromCol, fromRow); if (!attacker) return false;
+    const en = getEnemyAt(toCol, toRow); if (!en) return false;
+    damageEnemy(en, PIECES[attacker.type].attackDamage || 1);
+    endPlayerTurn(); return true;
+  }
+
+  // 勇士：上下左右 1~3 格，路径上不能有棋子 / 敌人 / 生成点 / 运输舰
+  function getMoveTargets(col, row) {
+    const piece = getPieceAt(col, row);
+    if (!piece || piece.type !== 'warrior') return [];
+    const range = PIECES.warrior.moveRange;
+    const tPos = PATH[state.transportIndex];
+    const out = [];
+    for (const d of DIRS4) {
+      for (let step = 1; step <= range; step++) {
+        const c = col + d.dc * step, r = row + d.dr * step;
+        if (!inBounds(c, r) || state.pieces.has(key(c, r)) || getEnemyAt(c, r) || isDisabledCell(c, r)) break;
+        if (tPos && tPos.col === c && tPos.row === r) break;
+        out.push({ col: c, row: r, step });
+      }
+    }
+    return out;
+  }
+
+  function doMove(fromCol, fromRow, toCol, toRow) {
+    const piece = getPieceAt(fromCol, fromRow); if (!piece) return false;
+    state.pieces.delete(key(fromCol, fromRow));
+    state.pieces.set(key(toCol, toRow), piece);
+    endPlayerTurn(); return true;
+  }
+
+  // 快速布墙：一次付费，连续放 placeCount 面壁垒；取消时全额退款并撤回已放的墙
+  function startMultiPlace(type) {
+    const def = PIECES[type];
+    if (!def || def.kind !== 'multiplace' || state.meteors < def.cost) return false;
+    state.meteors -= def.cost;
+    state.multiPlace = {
+      sourceType: type, placeType: def.placeType,
+      remaining: def.placeCount, placedKeys: [],
+    };
+    state.placing = null;
+    return true;
+  }
+
+  function cancelMultiPlace() {
+    const mp = state.multiPlace; if (!mp) return;
+    for (const k of mp.placedKeys) state.pieces.delete(k);
+    state.meteors += PIECES[mp.sourceType].cost;
+    state.multiPlace = null;
+  }
+
+  function makeActionBtn(label, cls, onClick, active) {
+    const b = document.createElement('button');
+    b.className = 'action-btn ' + cls + (active ? ' active' : '');
+    b.textContent = label;
+    b.onclick = onClick;
+    return b;
+  }
+
+  function renderActionPanel() {
+    const panel = document.getElementById('actionPanel'); if (!panel) return;
+    const title = document.getElementById('actionPanelTitle');
+    const box = document.getElementById('actionButtons');
+    box.innerHTML = '';
+
+    if (state.multiPlace) {
+      title.textContent = '快速布墙';
+      const label = document.createElement('span');
+      label.className = 'action-hint-label';
+      label.textContent = '还剩 ' + state.multiPlace.remaining + ' 面壁垒，点绿色格放置';
+      box.appendChild(label);
+      box.appendChild(makeActionBtn('取消', 'btn-cancel', () => { cancelMultiPlace(); updateHUD(); renderActionPanel(); draw(); }));
+      panel.classList.add('show'); return;
+    }
+
+    const sel = state.selected;
+    if (!sel || state.gameOver || state.isProcessing) { panel.classList.remove('show'); return; }
+    const piece = getPieceAt(sel.col, sel.row);
+    if (!piece) { state.selected = null; state.controlAction = null; panel.classList.remove('show'); return; }
+    title.textContent = PIECES[piece.type].name;
+
+    const addBtn = (label, action, cls) => {
+      box.appendChild(makeActionBtn(label, cls, () => {
+        state.controlAction = action; updateHUD(); renderActionPanel(); draw();
+      }, state.controlAction === action));
+    };
+
+    if (piece.type === 'archer') addBtn('射击', 'shoot', 'btn-shoot');
+    else if (piece.type === 'cannon') addBtn('开炮', 'shootCannon', 'btn-shoot');
+    else if (piece.type === 'warrior') {
+      addBtn('攻击', 'attack', 'btn-attack');
+      addBtn('移动', 'move', 'btn-move');
+    } else { panel.classList.remove('show'); return; }
+
+    box.appendChild(makeActionBtn('取消', 'btn-cancel', () => clearSelection()));
+    panel.classList.add('show');
+  }
+
+  function clearSelection(repaint) {
+    state.selected = null; state.controlAction = null;
+    renderActionPanel();
+    if (repaint !== false) { updateHUD(); draw(); }
+  }
+
+  // ==================== UI 逻辑 ====================
+  const hintEl = document.getElementById('hint');
+  function updateHUD() {
+    document.getElementById('hudTurn').textContent = state.turn;
+    document.getElementById('hudMeteor').textContent = state.meteors;
+    document.getElementById('hudWave').textContent = state.wave;
+
+    const phaseEl = document.getElementById('hudPhase');
+    if (state.phase === 'prepare') { phaseEl.textContent = '准备'; phaseEl.className = 'phase-tag prepare'; }
+    else if (state.phase === 'battle') { phaseEl.textContent = '战斗'; phaseEl.className = 'phase-tag battle'; }
+
+    document.getElementById('sellBtn').classList.toggle('active', state.selling);
+    document.getElementById('sellBtn').disabled = state.gameOver || state.isProcessing;
+    
+    const moveBtn = document.getElementById('moveTransportBtn');
+    // 准备期一结束就能移动；只有移动过才进入冷却，冷却归零即可再移动（不再是固定周期）
+    const canMove = state.completedTurns >= CFG.PREPARE_TURNS && state.transportCooldown <= 0 && !state.isProcessing && !state.gameOver;
+    moveBtn.disabled = !canMove;
+    if (state.completedTurns < CFG.PREPARE_TURNS) {
+      moveBtn.textContent = `移动运输舰 (${CFG.PREPARE_TURNS - state.completedTurns}回合后)`;
+    } else {
+      moveBtn.textContent = canMove ? '移动运输舰 (就绪)' : `移动运输舰 (冷却 ${state.transportCooldown})`;
+    }
+
+    SL.piecesheet.syncSheet(pieceButtons, {
+      meteors: state.meteors,
+      active: state.placing || (state.multiPlace && state.multiPlace.sourceType) || null,
+      locked: state.gameOver || state.isProcessing || state.selling,
+    });
+
+    if (state.gameOver) hintEl.textContent = state.victory ? '胜利！' : '失败...';
+    else if (state.isProcessing) hintEl.textContent = '敌人行动中...';
+    else if (state.multiPlace) hintEl.textContent = `快速布墙：点绿色格放置壁垒（还剩 ${state.multiPlace.remaining} 面，取消退还陨石）`;
+    else if (state.selling) hintEl.textContent = '点击己方棋子铲除（不返还陨石）';
+    else if (state.placing) hintEl.textContent = `选择绿色格放置「${PIECES[state.placing].name}」`;
+    else if (state.selected && state.controlAction) hintEl.textContent = '点棋盘上的绿色格执行操作，或点「取消」';
+    else hintEl.textContent = state.phase === 'prepare' ? '准备阶段：布置防线 / 点棋子操作' : '点击己方棋子操作 / 移动运输舰';
+
+    if (descLine) {
+      if (state.multiPlace) descLine.textContent = `快速布墙：还剩 ${state.multiPlace.remaining} 面壁垒（点绿色格放置，取消退还陨石）`;
+      else if (state.selling) descLine.textContent = '铲除模式：点棋子直接拆除，不返还陨石';
+      else if (state.placing) descLine.textContent = `已选中「${PIECES[state.placing].name}」，点绿色格放置（再点一次棋子取消）`;
+      else if (state.selected) descLine.textContent = '已选中棋子，在底栏选择要执行的动作';
+      else if (descShown) descLine.textContent = '再点一次该棋子可收起说明';
+      else descLine.textContent = '点一下棋子看说明，点棋盘上的棋子可执行动作';
+    }
+  }
+
+  // ==================== 棋子条 + 说明 ====================
+  const pieceContainer = document.getElementById('pieceContainer');
+  const descBox = document.getElementById('pieceDesc');
+  const descIcon = document.getElementById('descIcon');
+  const descName = document.getElementById('descName');
+  const descTag = document.getElementById('descTag');
+  const descText = document.getElementById('descText');
+  const descLine = document.getElementById('descLine');
+  let descShown = null;
+
+  function showDesc(id) {
+    const p = SL.piecesheet.get(id);
+    if (!p) return;
+    descShown = id;
+    SL.piecesheet.paintIcon(descIcon, id, 'player');
+    descName.textContent = p.name;
+    descTag.textContent = `${p.cost} 陨石 · ${p.maxHp} 血 · ${p.categoryName}`;
+    descText.textContent = p.desc;
+    descBox.classList.add('show');
+    updateHUD();
+  }
+
+  function hideDesc() {
+    descShown = null;
+    descBox.classList.remove('show');
+    updateHUD();
+  }
+
+  // 按钮由共享棋子条渲染，说明文字写进底栏的常驻提示条（不遮挡棋盘）
+  const pieceButtons = SL.piecesheet.renderSheet(pieceContainer, AVAILABLE_PIECES, {
+    // 买不起也能点开看说明（不进放置状态）；再点一次收起
+    onInspect: (id) => {
+      if (descShown === id) hideDesc(); else showDesc(id);
+    },
+    onPick: (id) => {
+      if (state.gameOver || state.isProcessing || state.selling) return;
+      showDesc(id);
+      if (state.selected) clearSelection(false);
+      const def = PIECES[id];
+      if (def && def.kind === 'multiplace') {
+        // 再次点击正在连放的棋子 = 取消并退款，不能重复扣费重新购买
+        if (state.multiPlace && state.multiPlace.sourceType === id) {
+          cancelMultiPlace();
+        } else {
+          if (state.multiPlace) cancelMultiPlace();
+          if (state.placing === id) state.placing = null;
+          else startMultiPlace(id);
+        }
+      } else {
+        if (state.multiPlace) cancelMultiPlace();
+        state.placing = state.placing === id ? null : id;
+      }
+      updateHUD(); renderActionPanel(); draw();
+    },
+  });
+
+  if (window.matchMedia && window.matchMedia('(hover: hover)').matches) {
+    pieceButtons.forEach((btn) => {
+      btn.addEventListener('mouseenter', () => { if (!descShown) showDesc(btn.dataset.piece); });
+      btn.addEventListener('mouseleave', () => { if (!state.placing) hideDesc(); });
+    });
+  }
+
+  // ==================== 游戏核心 ====================
+  // 星炮爆炸特效：与 game.html 同款径向渐变火球 + 白核 + 扩散环
+  function drawExplosion(e) {
+    const r = cellRect(e.col, e.row);
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    const p = Math.min(1, e.t / e.dur);
+    const alpha = 1 - p;
+    const radius = CFG.CELL * (0.35 + p * 1.5);
+
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.9;
+    const grad = ctx.createRadialGradient(cx, cy, radius * 0.15, cx, cy, radius);
+    grad.addColorStop(0.00, C.explosionHot);
+    grad.addColorStop(0.35, C.explosionMid);
+    grad.addColorStop(1.00, C.explosionEdge);
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    const coreR = CFG.CELL * 0.55 * (1 - p);
+    if (coreR > 0.5) {
+      ctx.fillStyle = `rgba(255, 255, 230, ${alpha})`;
+      ctx.beginPath(); ctx.arc(cx, cy, coreR, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.85;
+    ctx.strokeStyle = C.shell;
+    ctx.lineWidth = 3 * (1 - p) + 1;
+    ctx.beginPath(); ctx.arc(cx, cy, radius * 0.9, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // 爆炸瞬间轻微晃动棋盘（game.html 同款）
+  function shakeCanvas(intensity = 7, duration = 280) {
+    const start = performance.now();
+    function tick() {
+      const elapsed = performance.now() - start;
+      if (elapsed > duration) { canvas.style.transform = ''; return; }
+      const k = 1 - elapsed / duration;
+      const dx = (Math.random() - 0.5) * intensity * k;
+      const dy = (Math.random() - 0.5) * intensity * k;
+      canvas.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+      requestAnimationFrame(tick);
+    }
+    tick();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, SIZE, SIZE);
+    for (let r = 0; r < CFG.N; r++) {
+      for (let c = 0; c < CFG.N; c++) {
+        const rect = cellRect(c, r);
+        ctx.fillStyle = C.empty;
+        if (c === SPAWNER_POS.col && r === SPAWNER_POS.row) ctx.fillStyle = C.spawner;
+        else if (SPAWN_CELLS.some(s => s.col === c && s.row === r)) ctx.fillStyle = C.spawnCell;
+        else if (PATH.some(p => p.col === c && p.row === r)) ctx.fillStyle = C.path;
+        ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+        ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+        ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+      }
+    }
+
+    const nextPath = PATH[state.transportIndex + 1];
+    if (nextPath && !state.gameOver) {
+      const rect = cellRect(nextPath.col, nextPath.row);
+      ctx.fillStyle = 'rgba(34,211,238,0.15)';
+      ctx.fillRect(rect.x + 2, rect.y + 2, rect.w - 4, rect.h - 4);
+    }
+
+    if ((state.placing || state.multiPlace) && !state.selling) {
+      const cells = getPlaceableCells();
+      for (const { col, row } of cells) {
+        const rect = cellRect(col, row); ctx.fillStyle = 'rgba(34,197,94,0.18)'; ctx.fillRect(rect.x + 4, rect.y + 4, rect.w - 8, rect.h - 8);
+        ctx.strokeStyle = C.valid; ctx.lineWidth = 1.5; ctx.strokeRect(rect.x + 4.5, rect.y + 4.5, rect.w - 9, rect.h - 9);
+      }
+    }
+
+    const tPos = PATH[state.transportIndex];
+    if (tPos) {
+      const rect = cellRect(tPos.col, tPos.row);
+      const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
+      ctx.save();
+      ctx.shadowColor = '#22d3ee'; ctx.shadowBlur = 15;
+      SL.paintPieceBody(ctx, cx, cy, rect.w - 8, 'transport', 'transport');
+      ctx.restore();
+    }
+
+    for (const [k, piece] of state.pieces) {
+      const [col, row] = k.split(',').map(Number);
+      const rect = cellRect(col, row); const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
+      const size = rect.w - 12, half = size / 2;
+      
+      SL.paintPieceBody(ctx, cx, cy, size, piece.type, 'player');
+      
+      const hpStr = String(Math.max(0, piece.hp));
+      ctx.font = `900 12px ui-sans-serif, system-ui, sans-serif`;
+      const badgeH = 16, badgeW = Math.max(badgeH, ctx.measureText(hpStr).width + 10), rad = badgeH / 2;
+      const bx = cx + half - badgeW - 1, by = cy + half - badgeH - 1;
+      ctx.fillStyle = 'rgba(0,0,0,0.85)'; roundRect(bx, by, badgeW, badgeH, rad); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.4; roundRect(bx, by, badgeW, badgeH, rad); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(hpStr, bx + badgeW / 2, by + badgeH / 2 + 0.5);
+
+      if (state.selling) {
+        ctx.strokeStyle = C.sell; ctx.lineWidth = 3;
+        ctx.strokeRect(rect.x + 3, rect.y + 3, rect.w - 6, rect.h - 6);
+      }
+    }
+
+    for (const en of state.enemies) {
+      const rect = cellRect(en.col, en.row); const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
+      const size = rect.w - 12, half = size / 2;
+      
+      SL.paintPieceBody(ctx, cx, cy, size, en.type, en.type);
+      
+      const hpStr = String(Math.max(0, en.hp));
+      ctx.font = `900 12px ui-sans-serif, system-ui, sans-serif`;
+      const badgeH = 16, badgeW = Math.max(badgeH, ctx.measureText(hpStr).width + 10), rad = badgeH / 2;
+      const bx = cx + half - badgeW - 1, by = cy + half - badgeH - 1;
+      ctx.fillStyle = 'rgba(0,0,0,0.85)'; roundRect(bx, by, badgeW, badgeH, rad); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.4; roundRect(bx, by, badgeW, badgeH, rad); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(hpStr, bx + badgeW / 2, by + badgeH / 2 + 0.5);
+    }
+
+    // 选中棋子的黄色外框
+    if (state.selected) {
+      const rect = cellRect(state.selected.col, state.selected.row);
+      ctx.strokeStyle = C.select; ctx.lineWidth = 2.5;
+      ctx.strokeRect(rect.x + 2.5, rect.y + 2.5, rect.w - 5, rect.h - 5);
+    }
+
+    // 操作提示：射击/炮击画八个方向格，近战只画有敌人的相邻格，移动画可到达格
+    if (state.selected && state.controlAction && !state.isProcessing) {
+      const act = state.controlAction;
+      const dirs = (act === 'shoot' || act === 'shootCannon' || act === 'attack') ? DIRS8 : DIRS4;
+      for (const d of dirs) {
+        const c = state.selected.col + d.dc, r = state.selected.row + d.dr;
+        if (!inBounds(c, r)) continue;
+        if (act === 'attack' && !getEnemyAt(c, r)) continue;
+        const rc = cellRect(c, r);
+        ctx.strokeStyle = act === 'attack' ? C.attack : (act === 'move' ? C.move : C.aim);
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(rc.x + 5, rc.y + 5, rc.w - 10, rc.h - 10);
+      }
+      if (act === 'move') {
+        for (const t of getMoveTargets(state.selected.col, state.selected.row)) {
+          const rc = cellRect(t.col, t.row);
+          ctx.fillStyle = 'rgba(34,197,94,0.18)';
+          ctx.fillRect(rc.x + 5, rc.y + 5, rc.w - 10, rc.h - 10);
+        }
+      }
+    }
+
+    if (state.hover) {
+      const rect = cellRect(state.hover.col, state.hover.row);
+      ctx.strokeStyle = C.hover; ctx.lineWidth = 2;
+      ctx.strokeRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2);
+    }
+
+    for (const a of state.arrows) {
+      const ang = Math.atan2(a.ty - a.y0, a.tx - a.x0);
+      ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(ang);
+      ctx.shadowColor = a.color; ctx.shadowBlur = 8;
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-7, -6); ctx.lineTo(-3, 0); ctx.lineTo(-7, 6); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+
+    for (const e of state.explosions) drawExplosion(e);
+  }
+
+  // ==================== 交互逻辑 ====================
+  // 桌面：鼠标移动即高亮格子（不必按住）；点击落子。
+  // 触屏：轻点落子；上下滑动交给 .stage 滚动，滑动不误落子，也不留高亮残影。
+  const TAP_SLOP = 10;      // 位移超过这个像素算「滑动」，不算点击
+  let press = null;          // { x, y, moved }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    press = { x: e.clientX, y: e.clientY, moved: false };
+    if ((e.pointerType || 'mouse') === 'mouse') updateHover(e);
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (press && (Math.abs(e.clientX - press.x) > TAP_SLOP || Math.abs(e.clientY - press.y) > TAP_SLOP)) press.moved = true;
+    // 桌面端不按下也跟随高亮；触屏不画 hover（避免残留）
+    if ((e.pointerType || 'mouse') === 'mouse') updateHover(e);
+  });
+  canvas.addEventListener('pointerup', (e) => {
+    const p = press; press = null;
+    // 只有「按下后没怎么移动」才算点击，桌面/触屏统一在这里处理（不再用 click，避免双触发）
+    if (p && !p.moved) handleTap(e);
+  });
+  canvas.addEventListener('pointercancel', () => { press = null; if (state.hover) { state.hover = null; draw(); } });
+  canvas.addEventListener('pointerleave', () => { if (state.hover) { state.hover = null; draw(); } });
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  function updateHover(e) {
+    const rect = canvas.getBoundingClientRect();
+    const cell = pixelToCell(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height);
+    if ((state.hover && cell && state.hover.col === cell.col && state.hover.row === cell.row) || (!state.hover && !cell)) return;
+    state.hover = cell;
+    if (state.selected && state.controlAction && cell) {
+      const dc = cell.col - state.selected.col, dr = cell.row - state.selected.row;
+      const inAdj8 = Math.abs(dc) <= 1 && Math.abs(dr) <= 1 && (dc !== 0 || dr !== 0);
+      let isTarget = false;
+      const act = state.controlAction;
+      if (act === 'shoot' || act === 'shootCannon') isTarget = inAdj8;
+      else if (act === 'attack') isTarget = inAdj8 && !!getEnemyAt(cell.col, cell.row);
+      else if (act === 'move') isTarget = getMoveTargets(state.selected.col, state.selected.row).some(t => t.col === cell.col && t.row === cell.row);
+      canvas.style.cursor = isTarget ? 'crosshair' : 'not-allowed';
+    } else {
+      canvas.style.cursor = (state.placing || state.multiPlace || state.selling) ? 'pointer' : 'default';
+    }
+    draw();
+  }
+
+  function handleTap(e) {
+    if (state.gameOver || state.isProcessing) return;
+    const rect = canvas.getBoundingClientRect();
+    const cell = pixelToCell(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height);
+    if (!cell) { cancelAllModes(); return; }
+
+    // 1) 已选动作优先：按指定方向 / 目标结算，并消耗本回合
+    if (state.selected && state.controlAction) {
+      const { col, row } = state.selected;
+      const dc = cell.col - col, dr = cell.row - row;
+      const inAdj8 = Math.abs(dc) <= 1 && Math.abs(dr) <= 1 && (dc !== 0 || dr !== 0);
+      const act = state.controlAction;
+      if (act === 'shoot' && inAdj8) { doShoot(col, row, dc, dr); return; }
+      if (act === 'shootCannon' && inAdj8) { doCannonShot(col, row, dc, dr); return; }
+      if (act === 'attack' && inAdj8) { if (doMeleeAttack(col, row, cell.col, cell.row)) return; }
+      if (act === 'move' && getMoveTargets(col, row).some(t => t.col === cell.col && t.row === cell.row)) {
+        doMove(col, row, cell.col, cell.row); return;
+      }
+      // 点了无效格：只退出当前动作，保留选中，方便改选别的动作
+      state.controlAction = null; renderActionPanel(); updateHUD(); draw(); return;
+    }
+
+    // 2) 快速布墙：连续放 N 面，只在最后一次放完时结束回合
+    if (state.multiPlace) {
+      const mp = state.multiPlace;
+      const k = key(cell.col, cell.row);
+      if (!state.pieces.has(k) && !getEnemyAt(cell.col, cell.row)
+          && getPlaceableCells().some(c => c.col === cell.col && c.row === cell.row)) {
+        const def = PIECES[mp.placeType];
+        state.pieces.set(k, { type: mp.placeType, hp: def.maxHp, maxHp: def.maxHp });
+        mp.placedKeys.push(k);
+        mp.remaining--;
+        if (mp.remaining === 0) { state.multiPlace = null; endPlayerTurn(); }
+        renderActionPanel();
+      }
+      updateHUD(); draw(); return;
+    }
+
+    // 3) 铲除模式
+    if (state.selling) {
+      if (getPieceAt(cell.col, cell.row)) {
+        state.pieces.delete(key(cell.col, cell.row));
+        if (state.selected && state.selected.col === cell.col && state.selected.row === cell.row) clearSelection(false);
+        updateHUD(); draw();
+      }
+      return;
+    }
+
+    // 4) 普通放置
+    if (state.placing) {
+      const def = PIECES[state.placing];
+      if (!getPieceAt(cell.col, cell.row) && !getEnemyAt(cell.col, cell.row)
+          && state.meteors >= def.cost
+          && getPlaceableCells().some(c => c.col === cell.col && c.row === cell.row)) {
+        state.meteors -= def.cost;
+        state.pieces.set(key(cell.col, cell.row), { type: state.placing, hp: def.maxHp, maxHp: def.maxHp });
+        state.placing = null;
+        endPlayerTurn();
+      }
+      updateHUD(); draw(); return;
+    }
+
+    // 5) 点己方可操作棋子 → 底栏展开操作条
+    const piece = getPieceAt(cell.col, cell.row);
+    if (piece && ['archer', 'warrior', 'cannon'].indexOf(piece.type) >= 0) {
+      state.selected = { col: cell.col, row: cell.row };
+      state.controlAction = null;
+      renderActionPanel(); updateHUD(); draw(); return;
+    }
+    if (state.selected) clearSelection();
+  }
+
+  function cancelAllModes() {
+    if (state.multiPlace) { cancelMultiPlace(); renderActionPanel(); }
+    state.placing = null; state.selling = false;
+    if (state.selected) clearSelection(false);
+    updateHUD(); draw();
+  }
+
+  // ==================== 回合与敌人 ====================
+  function endPlayerTurn() {
+    if (state.gameOver || state.isProcessing) return;
+    state.completedTurns++; state.turn = state.completedTurns + 1;
+    // 冷却按玩家回合递减；移动按钮在 endPlayerTurn 之后才设新冷却，不会被这里减掉
+    if (state.transportCooldown > 0) state.transportCooldown--;
+    state.selling = false;
+    state.placing = null;
+    state.multiPlace = null;
+    state.selected = null;
+    state.controlAction = null;
+    renderActionPanel();
+    state.isProcessing = true;
+
+    // ★ 1. 生产陨石
+    let gained = 0;
+    for (const [, piece] of state.pieces) {
+      if (piece.type === 'star') gained += PIECES.star.produce;
+    }
+    state.meteors += gained;
+
+    // ★ 2. 出怪（改成 >=）
+    if (state.completedTurns >= CFG.PREPARE_TURNS && (state.completedTurns - CFG.PREPARE_TURNS) % CFG.SPAWN_INTERVAL === 0) {
+      spawnWave();
+    }
+
+    // ★ 3. 敌人行动
+    if (state.completedTurns >= CFG.PREPARE_TURNS) {
+      executeEnemies();
+    }
+    
+    state.isProcessing = false;
+    updateHUD(); draw();
+  }
+
+  document.getElementById('moveTransportBtn').onclick = () => {
+    if (state.gameOver || state.isProcessing) return;
+    const next = PATH[state.transportIndex + 1];
+    if (!next) return;
+    
+    if (state.pieces.has(key(next.col, next.row)) || getEnemyAt(next.col, next.row)) {
+      alert('路径被阻挡！请清理前方棋子或敌人。');
+      return;
+    }
+    
+    state.transportIndex++;
+    if (state.transportIndex === PATH.length - 1) {
+      state.gameOver = true; state.victory = true; showGameOver(true); return;
+    }
+    // 移动消耗一回合；回合推进完再启动冷却，避免本次递减把它立刻减掉
+    endPlayerTurn();
+    state.transportCooldown = CFG.TRANSPORT_INTERVAL;
+    updateHUD(); draw();
+  };
+
+  function spawnWave() {
+    const waveNum = state.wave;
+    let spawns = [];
+    if (waveNum < 4) {
+      if (Math.random() < 0.5) spawns = ['mech', 'mech'];
+      else spawns = ['flyer'];
+    } else {
+      const r = Math.random();
+      if (r < 0.33) spawns = ['mech', 'mech', 'mech'];
+      else if (r < 0.66) spawns = ['mech', 'flyer'];
+      else spawns = ['flyer', 'flyer'];
+    }
+    
+    const available = SPAWN_CELLS.filter(s => !state.pieces.has(key(s.col, s.row)) && !getEnemyAt(s.col, s.row));
+    const shuffled = [...available].sort(() => Math.random() - 0.5);
+    
+    for (let i = 0; i < spawns.length; i++) {
+      if (i >= shuffled.length) break;
+      const s = shuffled[i];
+      const type = spawns[i];
+      state.enemies.push({
+        type, col: s.col, row: s.row,
+        hp: type === 'mech' ? 3 : 3, maxHp: type === 'mech' ? 3 : 3,
+      });
+    }
+    state.wave++;
+  }
+
+  function executeEnemies() {
+    const tPos = PATH[state.transportIndex];
+    
+    for (const en of state.enemies) {
+      if (en.hp <= 0) continue;
+      
+      const dx = tPos.col - en.col;
+      const dy = tPos.row - en.row;
+      
+      let dirs = [];
+      if (dx !== 0 || dy !== 0) {
+        if (Math.abs(dx) > Math.abs(dy)) {
+          dirs = dx > 0 ? ['right', 'down', 'up'] : ['left', 'down', 'up'];
+        } else if (Math.abs(dy) > Math.abs(dx)) {
+          dirs = dy > 0 ? ['up', 'left', 'right'] : ['down', 'left', 'right'];
+        } else {
+          dirs = [dx > 0 ? 'right' : 'left', dy > 0 ? 'up' : 'down'];
+        }
+      }
+      if (dirs.length === 0) dirs = ['left', 'down', 'up', 'right'];
+      
+      const chosenDir = dirs[Math.floor(Math.random() * (dirs.length > 1 ? 2 : 1))];
+      let dc = 0, dr = 0;
+      if (chosenDir === 'left') dc = -1; else if (chosenDir === 'right') dc = 1;
+      else if (chosenDir === 'down') dr = -1; else if (chosenDir === 'up') dr = 1;
+
+      if (en.type === 'flyer') {
+        let target = null;
+        let tc = en.col, tr = en.row;
+        for (let step = 1; step <= 2; step++) {
+          tc += dc; tr += dr;
+          if (!inBounds(tc, tr)) break;
+          const piece = getPieceAt(tc, tr);
+          const isTrans = (tc === tPos.col && tr === tPos.row);
+          if (piece || isTrans) { target = { col: tc, row: tr, isTrans }; break; }
+        }
+        if (target) {
+          const start = cellCenter(en.col, en.row);
+          const end = cellCenter(target.col, target.row);
+          state.arrows.push({ x0: start.x, y0: start.y, x: start.x, y: start.y, tx: end.x, ty: end.y, t: 0, dur: 0.15, color: '#c4b5fd' });
+          if (target.isTrans) { state.gameOver = true; state.victory = false; showGameOver(false); return; }
+          const p = getPieceAt(target.col, target.row);
+          if (p) {
+            p.hp -= 2;
+            if (p.hp <= 0) state.pieces.delete(key(target.col, target.row));
+          }
+          continue;
+        }
+      }
+
+      const nc = en.col + dc, nr = en.row + dr;
+      if (!inBounds(nc, nr) || (nc === SPAWNER_POS.col && nr === SPAWNER_POS.row)) continue;
+      
+      const isTrans = (nc === tPos.col && nr === tPos.row);
+      const piece = getPieceAt(nc, nr);
+      
+      if (isTrans) {
+        state.gameOver = true; state.victory = false; showGameOver(false); return;
+      } else if (piece) {
+        piece.hp -= 1;
+        if (piece.hp <= 0) state.pieces.delete(key(nc, nr));
+      } else if (!getEnemyAt(nc, nr)) {
+        en.col = nc; en.row = nr;
+      }
+    }
+  }
+
+  function showGameOver(win) {
+    document.getElementById('gameoverCard').className = 'gameover-card ' + (win ? 'win' : 'lose');
+    document.getElementById('gameoverTitle').textContent = win ? 'VICTORY' : 'DEFEAT';
+    document.getElementById('gameoverSub').textContent = win ? '运输舰已安全抵达' : '运输舰被摧毁';
+    document.getElementById('gameoverOverlay').classList.add('show');
+    if (win) {
+      try {
+        const SAVE_KEY = 'spartlle_adventure_v1'; const save = JSON.parse(localStorage.getItem(SAVE_KEY) || '{"version":1,"progress":{}}');
+        if (!save.progress) save.progress = {};
+        const p = save.progress['c1-l2'] || { easy: false, hard: false, x: false };
+        const d = (new URLSearchParams(window.location.search).get('d') || 'easy').toLowerCase();
+        if (d === 'easy' || d === 'hard' || d === 'x') p[d] = true;
+        save.progress['c1-l2'] = p;
+        localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+      } catch (err) {}
+    }
+  }
+
+  // ==================== 启动 ====================
+  document.getElementById('backBtn').onclick = () => { window.location.href = 'adventure.html'; };
+  document.getElementById('codexBtn').onclick = () => { window.open('codex.html', '_blank'); };
+  document.getElementById('gameoverBackBtn').onclick = () => { window.location.href = 'adventure.html'; };
+  document.getElementById('gameoverRetryBtn').onclick = () => { window.location.reload(); };
+  document.getElementById('rulesCloseBtn').onclick = () => { document.getElementById('rulesOverlay').classList.remove('show'); };
+  document.getElementById('sellBtn').onclick = () => {
+    if (state.isProcessing || state.gameOver) return;
+    if (state.multiPlace) cancelMultiPlace();
+    if (state.selected) clearSelection(false);
+    state.selling = !state.selling; state.placing = null;
+    renderActionPanel(); updateHUD(); draw();
+  };
+
+  // 星空
+  const starfield = document.getElementById('starfield');
+  SL.initStarfield(starfield, { count: 160, mode: 'simple', bg: '#05050d' });
+
+  // 测试钩子：供自动化验证棋子逻辑（与 game.html 的 __game 同惯例）
+  window.__l12 = {
+    state, CFG, PIECES,
+    getPlaceableCells, startMultiPlace, cancelMultiPlace,
+    findShootTarget, doShoot, doCannonShot, doMeleeAttack, getMoveTargets, doMove,
+    endPlayerTurn, renderActionPanel, updateHUD, draw,
+  };
+
+  let lastTime = performance.now();
+  function loop(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.1); lastTime = now;
+    for (let i = state.arrows.length - 1; i >= 0; i--) {
+      const a = state.arrows[i];
+      a.t += dt;
+      if (a.t >= a.dur) { state.arrows.splice(i, 1); continue; }
+      const p = a.t / a.dur;
+      a.x = a.x0 + (a.tx - a.x0) * p;
+      a.y = a.y0 + (a.ty - a.y0) * p;
+    }
+    for (let i = state.explosions.length - 1; i >= 0; i--) {
+      const e = state.explosions[i];
+      e.t += dt;
+      if (e.t >= e.dur) state.explosions.splice(i, 1);
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  function boot() {
+    fitCanvas(); updateHUD(); draw();
+    // 进入页面先弹关卡玩法教程（右侧/底部抽屉，不遮整个棋盘），点「开始部署」关闭
+    document.getElementById('rulesOverlay').classList.add('show');
+    requestAnimationFrame(loop);
+
+    let raf = null;
+    const refit = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => { raf = null; fitCanvas(); });
+    };
+    window.addEventListener('resize', refit);
+    window.addEventListener('orientationchange', refit);
+    // 说明条展开会让底栏变高：只更新滚动留白，不重算棋盘尺寸（避免弹出时棋盘跳动）
+    if (window.ResizeObserver) {
+      const ro = new ResizeObserver(() => layoutChrome());
+      ro.observe(document.getElementById('bottomPanel'));
+      ro.observe(document.querySelector('.topbar'));
+    }
+  }
+  
+  boot();
+})();
+</script>
+</body>
+</html>

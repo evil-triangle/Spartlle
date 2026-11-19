@@ -94,6 +94,77 @@
     letter-spacing: 0.1em;
   }
 
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .sync-btn { font-size: 12px; padding: 9px 14px; letter-spacing: 0.14em; }
+
+  /* ===== 存档码弹窗 ===== */
+  .modal-card.code-card { max-width: 520px; }
+  .code-label {
+    font-size: 11px; color: #64748b; letter-spacing: 0.16em;
+    margin-bottom: 8px;
+  }
+  .code-label .count { color: #475569; }
+  .code-area {
+    width: 100%;
+    min-height: 58px;
+    padding: 10px 12px;
+    background: rgba(2, 6, 16, 0.9);
+    border: 1px solid rgba(96,165,250,0.25);
+    border-radius: 6px;
+    color: #7dd3fc;
+    font-family: 'Michroma', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    letter-spacing: 0.08em;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .code-area:focus { border-color: rgba(96,165,250,0.6); }
+  .code-area::placeholder {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px; letter-spacing: 0.05em; color: #475569;
+  }
+  .code-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .code-act {
+    flex: 1; min-width: 130px;
+    padding: 11px 14px;
+    background: rgba(15,23,42,0.85);
+    border: 1px solid rgba(148,163,184,0.28);
+    border-radius: 6px;
+    color: #cbd5e1;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.14em;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .code-act:hover { color: #fff; border-color: #60a5fa; background: rgba(20,30,50,0.95); }
+  .code-act.primary { color: #04121f; background: #38bdf8; border-color: #38bdf8; }
+  .code-act.primary:hover { background: #7dd3fc; border-color: #7dd3fc; }
+  .code-sep { height: 1px; background: rgba(42,42,78,0.9); margin: 18px 0; }
+  .code-hint {
+    margin-top: 12px;
+    font-size: 12px;
+    line-height: 1.75;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    min-height: 18px;
+  }
+  .code-hint .ok { color: #7dd3fc; }
+  .code-hint .warn { color: #fbbf24; }
+  @media (max-width: 520px) {
+    .mode-title { font-size: 13px; letter-spacing: 0.12em; }
+    .sync-btn { padding: 8px 9px; font-size: 11px; letter-spacing: 0.04em; }
+    .progress-box { padding: 7px 10px; gap: 6px; }
+    .progress-label { display: none; }
+  }
+  @media (max-width: 380px) {
+    .topbar { padding: 12px 14px; }
+    .back-btn { padding: 8px 12px; font-size: 12px; }
+    .mode-title { display: none; }
+  }
+
   /* ===== 星图 ===== */
   .map-viewport {
     position: fixed;
@@ -657,9 +728,12 @@
 <div class="topbar">
   <button class="back-btn" id="backBtn">← 返回</button>
   <div class="mode-title">ADVENTURE</div>
-  <div class="progress-box">
-    <span class="progress-label">CLEARED</span>
-    <span class="progress-value" id="progressValue">0 / 48</span>
+  <div class="topbar-right">
+    <button class="back-btn sync-btn" id="syncBtn">存档码</button>
+    <div class="progress-box">
+      <span class="progress-label">CLEARED</span>
+      <span class="progress-value" id="progressValue">0 / 48</span>
+    </div>
   </div>
 </div>
 
@@ -699,14 +773,45 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- 存档码弹窗 -->
+<div class="modal-overlay" id="codeOverlay">
+  <div class="modal-card code-card">
+    <div class="modal-header">
+      <span class="modal-level-tag">SAVE CODE</span>
+      <span class="modal-level-name">存档码</span>
+    </div>
+    <div class="code-label">当前进度 · <span class="count" id="codeLenLabel"></span></div>
+    <textarea class="code-area" id="codeOut" readonly spellcheck="false"></textarea>
+    <div class="code-row">
+      <button class="code-act primary" id="codeCopyBtn">复制进度码</button>
+      <button class="code-act" id="codeCopyUrlBtn">复制备份链接</button>
+    </div>
+    <div class="code-hint" id="codeUrlHint">备份链接固定指向线上站点，直接发给别人就能打开。</div>
+    <div class="code-sep"></div>
+    <div class="code-label">导入进度码或备份链接</div>
+    <textarea class="code-area" id="codeIn" placeholder="粘贴进度码，或带 #p= 的完整链接" spellcheck="false"></textarea>
+    <div class="code-row">
+      <button class="code-act primary" id="codeImportBtn">导入并合并</button>
+      <button class="code-act" id="codeClearBtn">清空输入</button>
+    </div>
+    <div class="code-hint" id="codeHint">导入只补齐进度，不会覆盖已有记录。</div>
+    <button class="modal-close" id="codeClose">关闭</button>
+  </div>
+</div>
+
+<script src="js/util.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/pieces.js"></script>
+<script src="js/starfield.js"></script>
+<script src="js/save.js"></script>
+<script src="js/progresscode.js"></script>
 <script>
 (() => {
   'use strict';
 
   // ==================== 常量 ====================
-  const CHAPTER_COUNT = 4;
-  const LEVELS_PER_CHAPTER = 12;
-  const SAVE_KEY = 'spartlle_adventure_v1';
+  const CHAPTER_COUNT = SL.save.CHAPTER_COUNT;
+  const LEVELS_PER_CHAPTER = SL.save.LEVELS_PER_CHAPTER;
 
   // 章节信息
   const CHAPTERS = [
@@ -741,134 +846,18 @@
   const BOTTOM_PADDING = 60;
   const TOP_PADDING = 80;
 
-  // ==================== 存档 ====================
-  function loadSave() {
-    try {
-      const raw = localStorage.getItem(SAVE_KEY);
-      if (!raw) return { version: 1, progress: {} };
-      const data = JSON.parse(raw);
-      if (data.version !== 1) return { version: 1, progress: {} };
-      if (!data.progress) data.progress = {};
-      return data;
-    } catch (e) {
-      console.warn('存档损坏，已重置', e);
-      return { version: 1, progress: {} };
-    }
-  }
-  function persistSave() {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(save));
-  }
+  // 存档逻辑委托给共享 save.js（调用点保持不变，便于调试接口复用）
+  let save = SL.save.load();
+  const lvKey = (ch, lv) => SL.save.lvKey(ch, lv);
+  function loadSave() { return save; }
+  function persistSave() { SL.save.persist(save); }
+  function getProgress(ch, lv) { return SL.save.getProgress(save, ch, lv); }
+  function isLevelUnlocked(ch, lv) { return SL.save.isLevelUnlocked(save, ch, lv); }
+  function isChapterUnlocked(ch) { return SL.save.isChapterUnlocked(save, ch); }
+  function countChapterCleared(ch) { return SL.save.countChapterCleared(save, ch); }
 
-  let save = loadSave();
-
-  const lvKey = (ch, lv) => `c${ch}-l${lv}`;
-
-  function getProgress(ch, lv) {
-    return save.progress[lvKey(ch, lv)] || { easy: false, hard: false, x: false };
-  }
-
-  // 至少 EASY 通关
-  function isLevelUnlocked(ch, lv) {
-    if (ch === 1 && lv === 1) return true;
-    if (lv > 1) {
-      return getProgress(ch, lv - 1).easy;
-    }
-    if (lv === 1 && ch > 1) {
-      return getProgress(ch - 1, LEVELS_PER_CHAPTER).easy;
-    }
-    return false;
-  }
-
-  function isChapterUnlocked(ch) {
-    if (ch === 1) return true;
-    return getProgress(ch - 1, LEVELS_PER_CHAPTER).easy;
-  }
-
-  function countChapterCleared(ch) {
-    let n = 0;
-    for (let lv = 1; lv <= LEVELS_PER_CHAPTER; lv++) {
-      if (getProgress(ch, lv).easy) n++;
-    }
-    return n;
-  }
-
-  // ==================== 星空背景 ====================
   const starCanvas = document.getElementById('starfield');
-  const starCtx = starCanvas.getContext('2d');
-  let W = 0, H = 0, DPR = 1;
-
-  function resizeStars() {
-    DPR = Math.min(window.devicePixelRatio || 1, 2);
-    W = window.innerWidth;
-    H = window.innerHeight;
-    starCanvas.width = W * DPR;
-    starCanvas.height = H * DPR;
-    starCanvas.style.width = W + 'px';
-    starCanvas.style.height = H + 'px';
-    starCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  }
-
-  const stars = [];
-  const NUM_STARS = 200;
-
-  function initStars() {
-    stars.length = 0;
-    for (let i = 0; i < NUM_STARS; i++) {
-      const layer = Math.random() < 0.5 ? 0 : Math.random() < 0.7 ? 1 : 2;
-      const size =
-        layer === 0 ? 0.3 + Math.random() * 0.5 :
-        layer === 1 ? 0.6 + Math.random() * 0.9 :
-                      1.2 + Math.random() * 1.5;
-      const speed =
-        layer === 0 ? 5 + Math.random() * 6 :
-        layer === 1 ? 12 + Math.random() * 10 :
-                      22 + Math.random() * 16;
-      stars.push({
-        x: Math.random() * W,
-        y: Math.random() * H,
-        r: size,
-        vy: speed,
-        vx: speed * 0.08 * (Math.random() < 0.5 ? -1 : 1),
-        twinkle: Math.random() * Math.PI * 2,
-        twinkleSpeed: 0.015 + Math.random() * 0.04,
-        baseAlpha: 0.4 + Math.random() * 0.5,
-      });
-    }
-  }
-
-  let lastTime = performance.now();
-  function drawStars(now) {
-    const dt = Math.min((now - lastTime) / 1000, 0.1);
-    lastTime = now;
-
-    const bg = starCtx.createRadialGradient(
-      W * 0.5, H * 0.4, 0,
-      W * 0.5, H * 0.4, Math.max(W, H) * 0.85
-    );
-    bg.addColorStop(0, '#0a0a1f');
-    bg.addColorStop(0.5, '#070712');
-    bg.addColorStop(1, '#030308');
-    starCtx.fillStyle = bg;
-    starCtx.fillRect(0, 0, W, H);
-
-    for (const s of stars) {
-      s.twinkle += s.twinkleSpeed * 60 * dt;
-      s.x += s.vx * dt;
-      s.y += s.vy * dt;
-      if (s.y > H + 5) { s.y = -5; s.x = Math.random() * W; }
-      if (s.x > W + 5) s.x = -5;
-      if (s.x < -5) s.x = W + 5;
-
-      const alpha = s.baseAlpha * (0.75 + 0.25 * Math.sin(s.twinkle));
-      starCtx.globalAlpha = alpha;
-      starCtx.fillStyle = '#ffffff';
-      starCtx.beginPath();
-      starCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-      starCtx.fill();
-    }
-    starCtx.globalAlpha = 1;
-    requestAnimationFrame(drawStars);
-  }
+  SL.initStarfield(starCanvas, { count: 200, mode: 'layered', twinkle: true });
 
   // ==================== 状态 ====================
   const state = {
@@ -1175,9 +1164,15 @@
       return;
     }
 
-    // 目前只有第一章第一关的 EASY 模式做好了
-    if (ch === 1 && lv === 1 && difficulty === 'easy') {
-      window.location.href = `1-1.html?c=${ch}&l=${lv}&d=${difficulty}`;
+    // 已做好的关卡页：EASY 模式直达。?d= 传难度，关卡页通关时按这个值写存档。
+    // key 格式 c<章>-l<关>-<难度>，后续新关卡只需往表里加一行。
+    const LEVEL_PAGES = {
+      'c1-l1-easy': '1-1.html',
+      'c1-l2-easy': '1-2.html',
+    };
+    const page = LEVEL_PAGES[`c${ch}-l${lv}-${difficulty}`];
+    if (page) {
+      window.location.href = `${page}?c=${ch}&l=${lv}&d=${difficulty}`;
     } else {
       showToast('<span class="highlight">关卡开发中</span> · 敬请期待');
     }
@@ -1200,24 +1195,132 @@
     if (e.target === modalOverlay) closeLevelModal();
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeLevelModal();
+    if (e.key === 'Escape') { closeLevelModal(); closeCodeModal(); }
   });
 
   // 窗口尺寸变化：重绘（连接线依赖容器宽度）
   let resizeRaf = null;
   window.addEventListener('resize', () => {
-    resizeStars();
-    initStars();
     if (resizeRaf) cancelAnimationFrame(resizeRaf);
     resizeRaf = requestAnimationFrame(() => {
       renderChapter(state.chapter);
     });
   });
 
+  // ==================== 存档码 ====================
+  const codeOverlay = document.getElementById('codeOverlay');
+  const codeOut = document.getElementById('codeOut');
+  const codeIn = document.getElementById('codeIn');
+  const codeHint = document.getElementById('codeHint');
+  const codeLenLabel = document.getElementById('codeLenLabel');
+
+  function refreshCodeOut() {
+    const code = SL.progressCode.encode(save);
+    codeOut.value = code;
+    codeLenLabel.textContent = code.length + ' 个字符';
+  }
+
+  function openCodeModal() {
+    refreshCodeOut();
+    codeIn.value = '';
+    codeHint.innerHTML = '导入只补齐进度，不会覆盖已有记录。';
+    codeOverlay.classList.add('show');
+  }
+
+  function closeCodeModal() {
+    codeOverlay.classList.remove('show');
+  }
+
+  // 导入：合并 + 落盘 + 刷新视图
+  function importCode(raw) {
+    const res = SL.progressCode.applyToSave(save, raw);
+    if (!res.ok) return res;
+    persistSave();
+    renderChapter(state.chapter);
+    renderChapterBar();
+    updateProgress();
+    return res;
+  }
+
+  function copyText(text, okMsg) {
+    const done = () => showToast(okMsg);
+    const fallback = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.top = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand && document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) done(); else showToast('<span class="highlight">请长按手动复制</span>');
+      } catch (e) {
+        showToast('<span class="highlight">请长按手动复制</span>');
+      }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  document.getElementById('syncBtn').addEventListener('click', openCodeModal);
+  document.getElementById('codeClose').addEventListener('click', closeCodeModal);
+  codeOverlay.addEventListener('click', (e) => {
+    if (e.target === codeOverlay) closeCodeModal();
+  });
+  document.getElementById('codeCopyBtn').addEventListener('click', () => {
+    copyText(codeOut.value, '<span class="highlight">进度码已复制</span>');
+  });
+  document.getElementById('codeCopyUrlBtn').addEventListener('click', () => {
+    copyText(SL.progressCode.backupURL(codeOut.value), '<span class="highlight">备份链接已复制</span>');
+  });
+  document.getElementById('codeClearBtn').addEventListener('click', () => {
+    codeIn.value = '';
+    codeIn.focus();
+  });
+  document.getElementById('codeImportBtn').addEventListener('click', () => {
+    const raw = codeIn.value.trim();
+    if (!raw) {
+      codeHint.innerHTML = '<span class="warn">先粘贴进度码或备份链接</span>';
+      return;
+    }
+    const res = importCode(raw);
+    if (!res.ok) {
+      const tip = res.reason === 'checksum' ? '校验失败，可能复制不完整'
+        : res.reason === 'version' ? '进度码来自更新的版本，请刷新页面'
+        : res.reason === 'length' ? '长度不对，进度码不完整'
+        : '进度码格式不正确';
+      codeHint.innerHTML = `<span class="warn">${tip}</span>`;
+      return;
+    }
+    refreshCodeOut();
+    codeHint.innerHTML = res.added > 0
+      ? `<span class="ok">已合并 ${res.added} 项进度</span>`
+      : '没有新进度可合并，本地记录已包含该码的全部内容';
+  });
+
   // ==================== 启动 ====================
-  resizeStars();
-  initStars();
-  requestAnimationFrame(drawStars);
+
+  // 带 #p= 进来：先合并再渲染，避免画面先闪一下旧进度
+  const bootCode = SL.progressCode.readFromHash(location.hash);
+  if (bootCode) {
+    const res = SL.progressCode.applyToSave(save, bootCode);
+    if (res.ok) {
+      persistSave();
+      SL.progressCode.stripHash();
+      setTimeout(() => showToast(
+        res.added > 0
+          ? `<span class="highlight">进度码已导入</span> · 合并 ${res.added} 项`
+          : '<span class="highlight">进度码已读取</span> · 无新增'
+      ), 400);
+    } else {
+      SL.progressCode.stripHash();
+      setTimeout(() => showToast('<span class="highlight">进度码无效</span> · 已忽略'), 400);
+    }
+  }
 
   chapterFloatTitle.textContent = CHAPTERS[0].name;
   renderChapter(1);
@@ -1266,6 +1369,9 @@
       updateProgress();
       showToast('<span class="highlight">已解锁所有章节</span>');
     },
+    encodeCode() { return SL.progressCode.encode(save); },
+    importCode,
+    openCodeModal,
   };
 })();
 </script>

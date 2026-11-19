@@ -1,0 +1,7 @@
+﻿removed _patch_12.py
+removed _patch_out.txt
+removed _smoke.txt
+removed _t12.txt
+removed _t12b.txt
+removed _layout12.txt
+removed 1-2.html.bak
